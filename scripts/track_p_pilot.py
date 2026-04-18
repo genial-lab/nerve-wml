@@ -12,6 +12,7 @@ from nerve_core.neuroletter import Neuroletter, Phase, Role
 from track_p.sim_nerve import SimNerve
 from track_p.vq_codebook import VQCodebook
 from track_p.transducer import Transducer
+from track_p.router import SparseRouter
 
 
 def run_p1(steps: int = 2000, dim: int = 32, size: int = 64) -> VQCodebook:
@@ -100,3 +101,28 @@ def run_p3(n_cycles: int = 200, dt: float = 1e-3) -> int:
             collision_count += 1
 
     return collision_count
+
+
+def run_p4(n_wmls: int = 4, k: int = 2) -> tuple[bool, torch.Tensor]:
+    """P4 — sample a sparse topology and verify K-active per WML + graph connectivity
+    via a simple BFS from node 0.
+    """
+    router = SparseRouter(n_wmls=n_wmls, k=k)
+    edges = router.sample_edges(tau=0.5, hard=True)
+
+    # K-active per row invariant (N-4).
+    k_per_wml = edges.sum(dim=-1)
+
+    # Undirected connectivity via BFS (nerve is bidirectional at the physical layer).
+    adjacency = ((edges + edges.T) > 0)
+    visited = {0}
+    frontier = [0]
+    while frontier:
+        node = frontier.pop()
+        for nbr in range(n_wmls):
+            if adjacency[node, nbr] and nbr not in visited:
+                visited.add(nbr)
+                frontier.append(nbr)
+    connected = len(visited) == n_wmls
+
+    return connected, k_per_wml
