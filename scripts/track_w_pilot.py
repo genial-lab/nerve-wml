@@ -171,3 +171,45 @@ def run_w4(steps: int = 400) -> dict:
         "acc_task0_after_task1":   acc0_after,
         "acc_task1_after_task1":   acc1_after,
     }
+
+
+def run_gate_w() -> dict:
+    """Run W1..W4 end-to-end and return a JSON-serialisable report."""
+    torch.manual_seed(0)
+    w1 = run_w1(steps=400)
+
+    w2 = run_w2(steps=400)
+    w2_gap = abs(w2["acc_mlp"] - w2["acc_lif"]) / max(w2["acc_mlp"], 1e-6)
+
+    w3_baseline, w3_with_eps = run_w3(steps=400)
+    w3_gain = (w3_with_eps - w3_baseline) / max(w3_baseline, 1e-6)
+
+    w4 = run_w4(steps=400)
+    w4_forgetting = (w4["acc_task0_initial"] - w4["acc_task0_after_task1"]) / max(
+        w4["acc_task0_initial"], 1e-6
+    )
+
+    all_passed = (
+        w1 > 0.6
+        and w2["acc_mlp"] > 0.6
+        and w2["acc_lif"] > 0.6
+        and w2_gap < 0.05
+        and w3_gain >= 0.10
+        and w4_forgetting < 0.20
+    )
+
+    return {
+        "w1_accuracy":            w1,
+        "w2_acc_mlp":             w2["acc_mlp"],
+        "w2_acc_lif":             w2["acc_lif"],
+        "w2_polymorphie_gap":     w2_gap,
+        "w3_gain_over_baseline":  w3_gain,
+        "w4_forgetting":          w4_forgetting,
+        "all_passed":             all_passed,
+    }
+
+
+if __name__ == "__main__":
+    import json
+
+    print(json.dumps(run_gate_w(), indent=2))
