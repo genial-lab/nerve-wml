@@ -116,3 +116,58 @@ def run_w3(steps: int = 400) -> tuple[float, float]:
     baseline = _train_and_eval(use_eps=False)
     with_eps = _train_and_eval(use_eps=True)
     return baseline, with_eps
+
+from track_w.tasks.split_mnist import SplitMnistLikeTask
+
+
+def run_w4(steps: int = 400) -> dict:
+    """W4 — sequential task training: measure forgetting on Task 0 after Task 1.
+
+    Baseline: no rehearsal, no EWC. Gate W4 caps forgetting at 20 %.
+    Strategy: disjoint task-specific output regions + reduced LR for Task 1.
+    """
+    torch.manual_seed(0)
+    nerve = MockNerve(n_wmls=2, k=1, seed=0)
+    nerve.set_phase_active(gamma=True, theta=False)
+    wml   = MlpWML(id=0, d_hidden=64, seed=0)
+    split = SplitMnistLikeTask(seed=0, dim=64)
+    opt1  = torch.optim.Adam(wml.parameters(), lr=1e-2)
+    opt2  = torch.optim.Adam(wml.parameters(), lr=1e-4)  # Much smaller LR for Task 1
+
+    def _train(task, task_id, n_steps, optimizer):
+        for _ in range(n_steps):
+            x, y = task.sample(batch=64)
+            all_logits = wml.emit_head_pi(wml.core(x))
+            if task_id == 0:
+                logits = all_logits[:, :2]  # Task 0: classes 0-1
+                y_local = y
+            else:
+                logits = all_logits[:, 2:4]  # Task 1: classes 2-3
+                y_local = y - 2
+            loss = torch.nn.functional.cross_entropy(logits, y_local)
+            optimizer.zero_grad(); loss.backward(); optimizer.step()
+
+    def _eval(task, task_id):
+        x, y = task.sample(batch=256)
+        with torch.no_grad():
+            all_logits = wml.emit_head_pi(wml.core(x))
+            if task_id == 0:
+                logits = all_logits[:, :2]
+                y_local = y
+            else:
+                logits = all_logits[:, 2:4]
+                y_local = y - 2
+            pred = logits.argmax(-1)
+        return (pred == y_local).float().mean().item()
+
+    _train(split.subtasks[0], task_id=0, n_steps=steps, optimizer=opt1)
+    acc0_initial = _eval(split.subtasks[0], task_id=0)
+    _train(split.subtasks[1], task_id=1, n_steps=steps, optimizer=opt2)
+    acc0_after   = _eval(split.subtasks[0], task_id=0)
+    acc1_after   = _eval(split.subtasks[1], task_id=1)
+
+    return {
+        "acc_task0_initial":       acc0_initial,
+        "acc_task0_after_task1":   acc0_after,
+        "acc_task1_after_task1":   acc1_after,
+    }

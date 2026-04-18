@@ -13,14 +13,15 @@ from .flow_proxy import FlowProxyTask
 @dataclass
 class SplitMnistLikeTask:
     seed: int = 0
+    dim: int = 16
     subtasks: list = field(init=False)
 
     def __post_init__(self) -> None:
         # Two flow-proxy tasks with non-overlapping label ranges, implemented
         # by using different class counts and re-labelling at sample time.
         self.subtasks = [
-            _LabelOffsetTask(FlowProxyTask(dim=16, n_classes=2, seed=self.seed), offset=0),
-            _LabelOffsetTask(FlowProxyTask(dim=16, n_classes=2, seed=self.seed + 1), offset=2),
+            _LabelOffsetTask(FlowProxyTask(dim=self.dim, n_classes=2, seed=self.seed), offset=0),
+            _LabelOffsetTask(FlowProxyTask(dim=self.dim, n_classes=2, seed=self.seed + 1), offset=2),
         ]
 
 
