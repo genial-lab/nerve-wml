@@ -439,7 +439,8 @@ def run_w2_hard(steps: int = 800) -> dict:
     isolation, MLP.train consumes random numbers and the LIF saw a
     shifted data distribution, producing a misleading 16.8 % gap.
     """
-    import torch.nn.functional as F
+    import torch.nn.functional as F  # noqa: N812
+
     from track_w._surrogate import spike_with_surrogate
     from track_w.tasks.hard_flow_proxy import HardFlowProxyTask
 
@@ -470,7 +471,9 @@ def run_w2_hard(steps: int = 800) -> dict:
         )
         logits = sims[:, : task_lif.n_classes]
         loss = F.cross_entropy(logits, y)
-        opt.zero_grad(); loss.backward(); opt.step()
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
 
     # Eval on another fresh task instance (same seed=0) so MLP and LIF see the
     # same distribution, independent of their training-time RNG consumption.
@@ -523,8 +526,9 @@ def run_w2_n16(steps: int = 400) -> dict:
     Per substrate: train WMLs of that type, then evaluate via their
     substrate-native classifier. Returns mean accuracy per substrate.
     """
-    from track_w.pool_factory import build_pool, k_for_n
     import numpy as np
+
+    from track_w.pool_factory import build_pool, k_for_n
 
     torch.manual_seed(0)
     n_wmls = 16
@@ -588,8 +592,9 @@ def run_w4_n16(steps: int = 400, rehearsal_frac: float = 0.3) -> dict:
     Uses all MLP pool (mlp_frac=1.0) so evaluation can cleanly use
     emit_head_pi. LIF continual learning is left for future work.
     """
-    from track_w.pool_factory import build_pool, k_for_n
     import numpy as np
+
+    from track_w.pool_factory import build_pool, k_for_n
 
     torch.manual_seed(0)
     n_wmls = 16
@@ -606,7 +611,9 @@ def run_w4_n16(steps: int = 400, rehearsal_frac: float = 0.3) -> dict:
                 x, y = task.sample(batch=64)
                 logits = wml.emit_head_pi(wml.core(x))[:, : 4]
                 loss = torch.nn.functional.cross_entropy(logits, y)
-                opt.zero_grad(); loss.backward(); opt.step()
+                opt.zero_grad()
+        loss.backward()
+        opt.step()
 
     def _eval(task) -> float:
         accs = []
@@ -633,7 +640,9 @@ def run_w4_n16(steps: int = 400, rehearsal_frac: float = 0.3) -> dict:
             loss_new = torch.nn.functional.cross_entropy(logits_new, y_new)
             loss_old = torch.nn.functional.cross_entropy(logits_old, y_old)
             loss = (loss_new * n_new + loss_old * n_rehearsal) / 64
-            opt.zero_grad(); loss.backward(); opt.step()
+            opt.zero_grad()
+        loss.backward()
+        opt.step()
 
     acc0_after = _eval(split.subtasks[0])
     acc1_after = _eval(split.subtasks[1])
@@ -657,6 +666,7 @@ def run_w2_n32(steps: int = 200) -> dict:
     Primary goal: no crash. Secondary: relative gap < 15 % (soft).
     """
     import numpy as np
+
     from track_w.pool_factory import build_pool, k_for_n
 
     torch.manual_seed(0)

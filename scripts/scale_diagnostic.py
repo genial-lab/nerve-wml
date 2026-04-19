@@ -58,10 +58,10 @@ def _strongly_connected_components(edges: np.ndarray) -> int:
     return scc_count[0]
 
 
-def scale_diagnostic(Ns: list[int] | None = None) -> dict[int, dict]:
+def scale_diagnostic(Ns: list[int] | None = None) -> dict[int, dict]:  # noqa: N803
     """Run diagnostic for each N in Ns. Returns per-N metrics dict."""
     if Ns is None:
-        Ns = [4, 8, 16, 32]
+        Ns = [4, 8, 16, 32]  # noqa: N806
 
     report: dict[int, dict] = {}
     for n in Ns:

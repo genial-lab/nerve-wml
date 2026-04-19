@@ -28,7 +28,9 @@ def test_hard_flow_proxy_linear_probe_does_not_saturate():
         x, y = task.sample(batch=64)
         logits = probe(x)
         loss = torch.nn.functional.cross_entropy(logits, y)
-        opt.zero_grad(); loss.backward(); opt.step()
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
 
     x, y = task.sample(batch=512)
     acc = (probe(x).argmax(-1) == y).float().mean().item()

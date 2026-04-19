@@ -4,12 +4,12 @@ import torch
 from scripts.scale_diagnostic import scale_diagnostic
 
 
-def test_scale_diagnostic_returns_metrics_per_N():
+def test_scale_diagnostic_returns_metrics_per_N():  # noqa: N802
     """Diagnostic runs at N ∈ {4, 8, 16, 32} and returns per-N metrics."""
     torch.manual_seed(0)
     report = scale_diagnostic(Ns=[4, 8, 16, 32])
     assert set(report.keys()) == {4, 8, 16, 32}
-    for n, metrics in report.items():
+    for _n, metrics in report.items():
         assert "fan_out_mean" in metrics
         assert "fan_in_mean" in metrics
         assert "fan_in_std" in metrics
@@ -25,5 +25,5 @@ def test_scale_diagnostic_n_components_positive():
     """Component count is always >= 1."""
     torch.manual_seed(0)
     report = scale_diagnostic(Ns=[4, 16])
-    for n, metrics in report.items():
+    for _n, metrics in report.items():
         assert metrics["n_components"] >= 1  # at least 1 component
