@@ -50,6 +50,7 @@ def render_w4_forgetting_bars(
 ) -> None:
     """Figure 2: W4 forgetting across three regimes (baseline / shared / rehearsal)."""
     import torch
+
     from scripts.track_w_pilot import run_w4, run_w4_multi_seed
 
     # Baseline (disjoint heads): deterministic across seeds, so measure once per seed.
@@ -100,6 +101,7 @@ def render_p1_dead_curve(
 ) -> None:
     """Figure 3: dead-code fraction vs step, three VQ init variants."""
     import torch
+
     from scripts.track_p_pilot import run_p1_dead_vs_steps
 
     torch.manual_seed(0)
@@ -147,6 +149,7 @@ def render_w2_histogram(
     to 1.0; for variance, a harder task would be needed (noted as follow-up).
     """
     import torch
+
     from scripts.track_w_pilot import run_w2_multi_seed
 
     torch.manual_seed(0)

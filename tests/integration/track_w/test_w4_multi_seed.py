@@ -20,7 +20,7 @@ def test_w4_multi_seed_rehearsal_better_than_shared():
     torch.manual_seed(0)
     report = run_w4_multi_seed(seeds=[0, 1, 2], steps=200)
     better = sum(
-        1 for s, r in zip(report["forgetting_shared"], report["forgetting_rehearsal"])
+        1 for s, r in zip(report["forgetting_shared"], report["forgetting_rehearsal"], strict=True)
         if r <= s  # ≤ because rehearsal might match shared if shared was already low
     )
     assert better >= 2
