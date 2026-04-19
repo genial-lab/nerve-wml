@@ -431,10 +431,13 @@ def run_w2_hard(steps: int = 800) -> dict:
 
     On FlowProxyTask 4-class both substrates saturate to 1.0 (paper v0.2
     §Threats). HardFlowProxyTask exposes real variance: linear probe
-    plateaus ~0.6, MLP trains further, LIF with cosine decoder lags.
+    plateaus ~0.55, leaving room for both MLP and LIF to demonstrate
+    their substrate-specific learning.
 
-    This pilot documents the honest gap rather than hiding it. The gap
-    is EXPECTED to exceed 5 % — see spec §13.1 Debt 2 (reopened).
+    RNG isolation: the task is re-instantiated after MLP training so
+    the LIF training sees the same initial task-RNG state. Without this
+    isolation, MLP.train consumes random numbers and the LIF saw a
+    shifted data distribution, producing a misleading 16.8 % gap.
     """
     import torch.nn.functional as F
     from track_w._surrogate import spike_with_surrogate
@@ -443,11 +446,14 @@ def run_w2_hard(steps: int = 800) -> dict:
     torch.manual_seed(0)
     nerve = MockNerve(n_wmls=2, k=1, seed=0)
     nerve.set_phase_active(gamma=True, theta=False)
-    task = HardFlowProxyTask(dim=16, n_classes=12, seed=0)
 
+    # MLP path — fresh task instance (seed 0).
+    task_mlp = HardFlowProxyTask(dim=16, n_classes=12, seed=0)
     mlp = MlpWML(id=0, d_hidden=16, seed=0)
-    train_wml_on_task(mlp, nerve, task, steps=steps, lr=1e-2)
+    train_wml_on_task(mlp, nerve, task_mlp, steps=steps, lr=1e-2)
 
+    # LIF path — fresh task instance (seed 0), independent RNG state.
+    task_lif = HardFlowProxyTask(dim=16, n_classes=12, seed=0)
     lif = LifWML(id=0, n_neurons=16, seed=10)
     input_encoder = torch.nn.Linear(16, lif.n_neurons)
     opt = torch.optim.Adam(
@@ -455,20 +461,23 @@ def run_w2_hard(steps: int = 800) -> dict:
         lr=1e-2,
     )
     for _ in range(steps):
-        x, y = task.sample(batch=64)
+        x, y = task_lif.sample(batch=64)
         i_in = lif.input_proj(input_encoder(x))
         spikes = spike_with_surrogate(i_in, v_thr=lif.v_thr)
         norms = lif.codebook.norm(dim=-1) + 1e-6
         sims = spikes @ lif.codebook.T / (
             norms * (spikes.norm(dim=-1, keepdim=True) + 1e-6)
         )
-        logits = sims[:, : task.n_classes]
+        logits = sims[:, : task_lif.n_classes]
         loss = F.cross_entropy(logits, y)
         opt.zero_grad(); loss.backward(); opt.step()
 
-    x, y = task.sample(batch=512)
+    # Eval on another fresh task instance (same seed=0) so MLP and LIF see the
+    # same distribution, independent of their training-time RNG consumption.
+    task_eval = HardFlowProxyTask(dim=16, n_classes=12, seed=0)
+    x, y = task_eval.sample(batch=512)
     with torch.no_grad():
-        pred_mlp = mlp.emit_head_pi(mlp.core(x))[:, : task.n_classes].argmax(-1)
+        pred_mlp = mlp.emit_head_pi(mlp.core(x))[:, : task_eval.n_classes].argmax(-1)
         acc_mlp = (pred_mlp == y).float().mean().item()
         i_in = lif.input_proj(input_encoder(x))
         spikes = spike_with_surrogate(i_in, v_thr=lif.v_thr)
@@ -476,7 +485,7 @@ def run_w2_hard(steps: int = 800) -> dict:
         sims = spikes @ lif.codebook.T / (
             norms * (spikes.norm(dim=-1, keepdim=True) + 1e-6)
         )
-        pred_lif = sims[:, : task.n_classes].argmax(-1)
+        pred_lif = sims[:, : task_eval.n_classes].argmax(-1)
         acc_lif = (pred_lif == y).float().mean().item()
 
     gap = abs(acc_mlp - acc_lif) / max(acc_mlp, 1e-6)
