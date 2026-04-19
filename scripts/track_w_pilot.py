@@ -612,8 +612,8 @@ def run_w4_n16(steps: int = 400, rehearsal_frac: float = 0.3) -> dict:
                 logits = wml.emit_head_pi(wml.core(x))[:, : 4]
                 loss = torch.nn.functional.cross_entropy(logits, y)
                 opt.zero_grad()
-        loss.backward()
-        opt.step()
+                loss.backward()
+                opt.step()
 
     def _eval(task) -> float:
         accs = []
