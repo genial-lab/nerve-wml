@@ -1,6 +1,5 @@
 """Tests for bridge.dream_bridge — collect, encode, apply."""
 import numpy as np
-import pytest
 import torch
 
 from bridge.dream_bridge import DreamBridge

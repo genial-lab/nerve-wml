@@ -75,7 +75,7 @@ class DreamBridge:
         if not self.enabled or not trace:
             return np.zeros((0, 4), dtype=np.int32)
 
-        GAMMA_HZ = 40.0  # matches Nerve.GAMMA_HZ
+        GAMMA_HZ = 40.0  # noqa: N806 (matches Nerve.GAMMA_HZ constant)
         rows = []
         for letter in trace:
             rows.append([
