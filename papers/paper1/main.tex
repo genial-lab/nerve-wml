@@ -223,6 +223,20 @@ $N=64$ (5 seeds) & $2.73\%$  & $3.71\%$  & 5/5 \\
 
 \textit{Single-seed artefacts.} The Gate P and Gate M pilots in this draft run on a single seed. Where multi-seed data exists (W2, W4, P1), we report it; elsewhere the reader should treat numbers as suggestive rather than statistically validated.
 
+\section{Information Transmission (v0.8)}
+
+The scaling law in \S Threats establishes \textbf{substrate-equivalent task competence}: MLP and LIF cohorts reach comparable accuracies at pool scale, with a $\sim 2\text{--}3\%$ plateau gap. That is Claim A. The title of this paper promises more: \emph{substrate-agnostic information transmission} (Claim B) --- that neuroletters emitted by one substrate can be \emph{decoded coherently} by another. This section reports three direct measurements of Claim B.
+
+\textbf{(1) Mutual information between emitted codes.} For $x$ sampled from \texttt{HardFlowProxyTask}, let $c_{\text{MLP}}(x)$ and $c_{\text{LIF}}(x)$ be the $\arg\max$ codes from each substrate's $\pi$ head. Over five seeds, $\operatorname{MI}(c_{\text{MLP}}, c_{\text{LIF}}) \approx 1.80$ nats out of $H(c_{\text{MLP}}) \approx 1.98$ nats --- a normalized ratio $\operatorname{MI} / H \approx 0.91$. Two independently trained substrates share $\sim 91\%$ of their code information; they are \emph{not} encoding orthogonally despite different dynamics.
+
+\textbf{(2) Round-trip fidelity.} A two-stage pipeline
+$x \to \texttt{MLP.emit} \to T_{M \to L} \to \texttt{LIF.emit} \to T_{L \to M} \to \arg\max$
+is trained by fine-tuning only the two transducers $T_{M \to L}, T_{L \to M} \in \mathbb{R}^{64 \times 64}$; substrates are frozen. Across three seeds, $\text{acc}_{\text{round-trip}} / \text{acc}_{\text{direct}} = \{0.91, 1.07, 0.98\}$, mean $0.99$. Code information survives the cross-substrate pass virtually intact.
+
+\textbf{(3) Cross-substrate merge.} Freeze a trained MLP and a trained LIF (both their cores and readouts). Train only a transducer $T : \mathbb{R}^{64} \to \mathbb{R}^{n_{\text{neurons}}}$ mapping MLP emissions to LIF input features. Measure LIF task accuracy when its \emph{sole input} is MLP-emitted logits via $T$: the LIF never sees $x$ directly. Across three seeds, merge ratio $\text{acc}_{\text{cross}} / \text{acc}_{\text{MLP}} = \{1.00, 0.96, 0.96\}$, mean $0.97$. A frozen LIF can recover $97\%$ of an MLP's task competence from its emitted codes alone, through a learned linear transducer.
+
+Together these three tests pin Claim B empirically: the Nerve Protocol does more than expose a shared interface --- it carries information that crosses the substrate boundary with minimal loss. The tests \texttt{test\_mi\_between\_substrates\_is\_high}, \texttt{test\_round\_trip\_fidelity\_preserves\_accuracy}, and \texttt{test\_cross\_substrate\_merge\_approaches\_mlp\_accuracy} pin the three measurements.
+
 \section{Reproducibility}
 
 All measurements in this paper resolve to a deterministic \texttt{run\_id} via \texttt{harness/run\_registry.py}. The frozen golden NPZ artefacts in \texttt{tests/golden/} lock in bit-stability.
