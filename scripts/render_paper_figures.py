@@ -132,6 +132,50 @@ def render_p1_dead_curve(
     plt.close(fig)
 
 
+
+def render_w2_histogram(
+    *,
+    output_path: str = "papers/paper1/figures/w2_histogram.pdf",
+    n_seeds:     int = 5,
+    steps:       int = 400,
+) -> None:
+    """Figure 4: MLP vs LIF accuracy histogram across seeds.
+
+    Uses run_w2_multi_seed over [0, ..., n_seeds-1]. Both distributions
+    are plotted as overlapping histograms with distinct colours.
+    Paper §5 discusses that on FlowProxyTask 4-class both pools saturate
+    to 1.0; for variance, a harder task would be needed (noted as follow-up).
+    """
+    import torch
+    from scripts.track_w_pilot import run_w2_multi_seed
+
+    torch.manual_seed(0)
+    report = run_w2_multi_seed(seeds=list(range(n_seeds)), steps=steps)
+
+    acc_mlp = np.array(report["acc_mlp"])
+    acc_lif = np.array(report["acc_lif"])
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+
+    bins = np.linspace(0, 1, 21)
+    ax.hist(acc_mlp, bins=bins, alpha=0.6, label=f"MLP (n={n_seeds})", color="#1f77b4")
+    ax.hist(acc_lif, bins=bins, alpha=0.6, label=f"LIF (n={n_seeds})", color="#ff7f0e")
+
+    ax.axvline(acc_mlp.mean(), color="#1f77b4", linestyle="--", linewidth=1,
+               label=f"MLP mean {acc_mlp.mean():.3f}")
+    ax.axvline(acc_lif.mean(), color="#ff7f0e", linestyle="--", linewidth=1,
+               label=f"LIF mean {acc_lif.mean():.3f}")
+
+    ax.set_xlim(0, 1.05)
+    ax.set_xlabel("accuracy on FlowProxyTask (4-class)")
+    ax.set_ylabel("seed count")
+    ax.set_title("Gate W2: MLP vs LIF polymorphie across seeds")
+    ax.legend(loc="upper left", fontsize=8)
+
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+
 def main() -> None:
     render_cycle_trace()
     print("paper figures rendered.")
