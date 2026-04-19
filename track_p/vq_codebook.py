@@ -84,3 +84,29 @@ class VQCodebook(nn.Module):
         # Straight-through estimator.
         quantized = z + (quantized - z).detach()
         return indices, quantized, loss
+
+    def rotate_dead_codes(self, z: Tensor, *, dead_threshold: int = 10) -> int:
+        """Move unused (or rarely used) codes to random live input points.
+
+        Zeghidour 2022: VQ training is brittle when some codes stop being
+        assigned. This method finds codes whose usage_counter <= dead_threshold
+        and replaces them with randomly-sampled rows from z.
+
+        Returns the number of codes rotated.
+        """
+        with torch.no_grad():
+            dead_mask = self.usage_counter <= dead_threshold
+            n_dead = int(dead_mask.sum().item())
+            if n_dead == 0 or z.shape[0] == 0:
+                return 0
+            idx = torch.randint(0, z.shape[0], (n_dead,))
+            new_embeds = z[idx].detach().clone()
+            if self.ema:
+                self.embeddings = self.embeddings.clone()
+                self.embeddings[dead_mask] = new_embeds
+                self.ema_embed_sum[dead_mask]    = new_embeds
+                self.ema_cluster_size[dead_mask] = 1.0
+            else:
+                self.embeddings.data[dead_mask] = new_embeds
+            self.usage_counter[dead_mask] = 0
+            return n_dead

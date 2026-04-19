@@ -35,3 +35,23 @@ def test_ema_update_does_not_require_gradient_through_embeddings():
     loss = quantized.sum()
     loss.backward()
     assert z.grad is not None
+
+
+def test_codebook_rotation_revives_dead_codes():
+    """After rotate_dead_codes, dead codes move to live input points
+    and become selectable on the next forward. Zeghidour 2022 trick."""
+    import torch
+
+    cb = VQCodebook(size=16, dim=8, ema=False)
+    cb.usage_counter[:10] = 100
+    cb.usage_counter[10:] = 0
+
+    live_before = cb.embeddings[:10].clone()
+    dead_before = cb.embeddings[10:].clone()
+
+    z = torch.randn(64, 8) * 0.05
+
+    cb.rotate_dead_codes(z, dead_threshold=10)
+
+    assert torch.allclose(cb.embeddings[:10], live_before)
+    assert not torch.allclose(cb.embeddings[10:], dead_before)
