@@ -667,6 +667,41 @@ def run_w2_hard_n32(steps: int = 200, seed: int = 0) -> dict:
     return _run_w2_hard_scale(n_wmls=32, steps=steps, seed=seed)
 
 
+def run_w2_hard_n32_multiseed(
+    seeds: list[int] | None = None,
+    steps: int = 200,
+) -> dict:
+    """Multi-seed W2-N32 HARD — same methodology as _n16 at larger pool.
+
+    The question this pilot answers: does the ~7 % distributional gap
+    observed at N=16 continue to hold at N=32, or does further pool
+    averaging compress it toward the 5 % contract? A stable gap across
+    scales indicates substrate-intrinsic asymmetry; a scale-dependent
+    one indicates residual variance.
+    """
+    import numpy as np
+
+    if seeds is None:
+        seeds = list(range(5))
+    per_seed = [run_w2_hard_n32(steps=steps, seed=s) for s in seeds]
+    gaps     = [r["gap"]          for r in per_seed]
+    accs_mlp = [r["mean_acc_mlp"] for r in per_seed]
+    accs_lif = [r["mean_acc_lif"] for r in per_seed]
+    return {
+        "seeds":        list(seeds),
+        "gaps":         gaps,
+        "accs_mlp":     accs_mlp,
+        "accs_lif":     accs_lif,
+        "mean_gap":     float(np.mean(gaps)),
+        "median_gap":   float(np.median(gaps)),
+        "p25_gap":      float(np.percentile(gaps, 25)),
+        "p75_gap":      float(np.percentile(gaps, 75)),
+        "max_gap":      float(np.max(gaps)),
+        "mean_acc_mlp": float(np.mean(accs_mlp)),
+        "mean_acc_lif": float(np.mean(accs_lif)),
+    }
+
+
 def run_w2_hard_n16_multiseed(
     seeds: list[int] | None = None,
     steps: int = 400,

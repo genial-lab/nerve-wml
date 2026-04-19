@@ -23,6 +23,7 @@ from scripts.track_w_pilot import (
     run_w2_hard_n16,
     run_w2_hard_n16_multiseed,
     run_w2_hard_n32,
+    run_w2_hard_n32_multiseed,
 )
 
 
@@ -98,3 +99,52 @@ def test_w2_hard_n16_multiseed_distribution():
         f"LIF >= MLP in only {lif_wins}/5 seeds; the v0.4 direction claim "
         "(LIF edges MLP on XOR-on-noise) needs re-examination"
     )
+
+
+def test_w2_hard_n32_multiseed_closes_under_5pct():
+    """v0.6 scaling law: at N=32, all 5 seeds fall under the 5 % contract.
+
+    This is the scaling closure the v0.5 paper suggested but could not
+    demonstrate with N=16 alone. Key assertions:
+      1. max_gap < 5 %: every seed satisfies the contract (not just median).
+      2. median_gap < 4 %: the distribution is strictly tighter than N=16.
+      3. Direction stability preserved (LIF >= MLP for all seeds).
+
+    Together with test_w2_hard_n16_multiseed_distribution these pin the
+    scaling trend (N=16 ~6.7 % → N=32 ~2.4 %).
+    """
+    r = run_w2_hard_n32_multiseed(seeds=list(range(5)), steps=200)
+    assert len(r["gaps"]) == 5
+    assert r["max_gap"] < 0.05, (
+        f"some seed at N=32 produced gap={r['max_gap']:.3f} >= 5 %; "
+        f"per-seed gaps = {r['gaps']}"
+    )
+    assert r["median_gap"] < 0.04, (
+        f"median gap at N=32 {r['median_gap']:.3f} >= 4 % — "
+        "scaling closure claim weakens"
+    )
+    lif_wins = sum(1 for i in range(5) if r["accs_lif"][i] >= r["accs_mlp"][i])
+    assert lif_wins == 5, (
+        f"LIF >= MLP in only {lif_wins}/5 seeds at N=32 — "
+        "direction stability across scales breaks"
+    )
+
+
+def test_w2_hard_scaling_law_is_monotonic():
+    """Cross-scale monotonicity: median gap SHRINKS with N.
+
+    The N=16 median (~6.7 %) should exceed the N=32 median (~2.4 %),
+    and both should be well under the N=2 single-instance 10.7 %.
+    This is the scaling law published in the paper's v0.6 §Threats.
+    """
+    r16 = run_w2_hard_n16_multiseed(seeds=list(range(5)), steps=400)
+    r32 = run_w2_hard_n32_multiseed(seeds=list(range(5)), steps=200)
+    # Monotonic decrease.
+    assert r32["median_gap"] < r16["median_gap"], (
+        f"scaling law violated: N=32 median {r32['median_gap']:.3f} "
+        f">= N=16 median {r16['median_gap']:.3f}"
+    )
+    # Both beneath the N=2 (single-instance) reference point.
+    n2_reference = 0.107
+    assert r16["median_gap"] < n2_reference
+    assert r32["median_gap"] < n2_reference
