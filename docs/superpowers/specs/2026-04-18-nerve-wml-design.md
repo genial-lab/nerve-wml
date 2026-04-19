@@ -553,6 +553,13 @@ The following scientific shortcuts were taken to ship gates P and W on schedule.
 - **W4 true continual learning.** The current W4 pilot uses disjoint output heads (Task 0 → classes 0-1, Task 1 → classes 2-3) and a reduced lr for Task 1. This avoids catastrophic forgetting by construction rather than by algorithmic means. A faithful W4 would share a full-class head and train both tasks at the same lr; forgetting would likely exceed 20 %. EWC or rehearsal would then become meaningful additions. — Raised during Plan 2 execution.
 - **P1 fully-random VQ convergence.** `run_p1_random_init` (Plan 3 Task 11) demonstrates the protocol converges without MOG cluster-center init, but does not enforce the dead-code < 10 % gate. Future work: characterise the convergence rate and find a training recipe that reaches gate under random init.
 
+#### Resolution status (Plan 4a)
+
+- **P3 γ-priority ablation** — RESOLVED (2026-04-18). `SimNerve` now accepts `priority_rule: bool`; `run_p3_no_priority` (in `scripts/track_p_pilot.py`) measures a **26 % collision rate** matching the §13.1 prediction of ~25 %. See `tests/integration/test_gate_p3_ablation.py`.
+- **W2 true-LIF polymorphie** — RESOLVED (2026-04-18). `run_w2_true_lif` drives the full surrogate-spike + cosine pattern-match path. Honest gap **0 %** on `FlowProxyTask 4-class` (both MLP and LIF converge to 1.000). Gate `test_w2_true_lif_gap_under_5pct` enforces < 5 % and passes. Follow-up: a task where performance is not saturated would stress-test the gap more rigorously.
+- **W4 true continual learning** — RESOLVED (2026-04-18). Shared-head baseline (`run_w4_shared_head`) shows **100 % forgetting without mitigation**. Rehearsal recipe (`run_w4_rehearsal` with `rehearsal_frac=0.3`) drops it to **0 %**, well under the 20 % gate. See `tests/integration/track_w/test_gate_w4_honest.py`.
+- **P1 fully-random VQ convergence** — RESOLVED (2026-04-18). `VQCodebook.rotate_dead_codes` (Zeghidour 2022) invoked every 500 steps brings dead-code fraction from 39 % → **0 %** at 16 000 steps, without any MOG cluster-center leak. Gate enforced by `tests/integration/test_gate_p1_random.py`.
+
 ---
 
 ## 14. Sign-off
