@@ -178,6 +178,50 @@ def run_w4(steps: int = 400) -> dict:
     }
 
 
+def run_w4_shared_head(steps: int = 400) -> dict:
+    """W4 honest — sequential training on Split-MNIST-like with SHARED head
+    (classes 0..3 all in the same emit_head_pi output) and SAME lr across
+    tasks. No disjoint-head trick, no reduced-lr trick.
+
+    Returns acc_task0_initial, acc_task0_after_task1, acc_task1_after_task1,
+    and forgetting ratio. Expected to forget > 20 % without rehearsal.
+    """
+    torch.manual_seed(0)
+    nerve = MockNerve(n_wmls=2, k=1, seed=0)
+    nerve.set_phase_active(gamma=True, theta=False)
+    wml   = MlpWML(id=0, d_hidden=16, seed=0)
+    split = SplitMnistLikeTask(seed=0)
+    opt   = torch.optim.Adam(wml.parameters(), lr=1e-2)
+
+    def _train(task, n_steps):
+        for _ in range(n_steps):
+            x, y = task.sample(batch=64)
+            logits = wml.emit_head_pi(wml.core(x))[:, : 4]
+            loss = torch.nn.functional.cross_entropy(logits, y)
+            opt.zero_grad(); loss.backward(); opt.step()
+
+    def _eval(task):
+        x, y = task.sample(batch=256)
+        with torch.no_grad():
+            pred = wml.emit_head_pi(wml.core(x))[:, : 4].argmax(-1)
+        return (pred == y).float().mean().item()
+
+    _train(split.subtasks[0], n_steps=steps)
+    acc0_initial = _eval(split.subtasks[0])
+    _train(split.subtasks[1], n_steps=steps)
+    acc0_after   = _eval(split.subtasks[0])
+    acc1_after   = _eval(split.subtasks[1])
+
+    forgetting = (acc0_initial - acc0_after) / max(acc0_initial, 1e-6)
+
+    return {
+        "acc_task0_initial":     acc0_initial,
+        "acc_task0_after_task1": acc0_after,
+        "acc_task1_after_task1": acc1_after,
+        "forgetting":            forgetting,
+    }
+
+
 
 
 def run_w2_true_lif(steps: int = 400) -> dict:
