@@ -7,8 +7,11 @@ from scripts.measure_cka_vs_mi import run_cka_vs_mi
 @pytest.mark.slow
 def test_mi_stronger_than_cka_at_argmax():
     """Our MI/H captures more alignment than CKA on the same argmax
-    one-hots, because MI is permutation-invariant and CKA is not.
-    Pins the three observations from docs/positioning.md."""
+    one-hots. Both are invariant to clean label permutations (CKA via
+    feature-orthogonal invariance per Kornblith 2019, MI by
+    construction); the gap reflects soft many-to-one code mappings
+    where CKA's linear structure breaks down but MI still captures
+    conditional dependence. See docs/positioning.md."""
     results = run_cka_vs_mi(seeds=[0, 1, 2], steps=400, batch=1024)
     mean_mi = sum(r["mi_over_h"] for r in results) / len(results)
     mean_cka_argmax = sum(r["cka_argmax_onehot"] for r in results) / len(results)

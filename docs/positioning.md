@@ -4,6 +4,12 @@
 > the question *"did we invent something new, or reimplement something
 > under a different name?"* with empirical comparisons where possible.
 > Authored 2026-04-20 following the v1.2.0 release.
+>
+> **Revision 2026-04-20 (v1.2.1 post-fetch).** Earlier drafts stated
+> that CKA is not permutation-invariant. This is **wrong** — Kornblith
+> et al. 2019 explicitly note that CKA's orthogonal invariance covers
+> feature permutation. The 4.3-percentage-point gap between MI/H and
+> CKA on argmax one-hots has a different origin, clarified below.
 
 ## TL;DR
 
@@ -13,13 +19,16 @@ protocol-level measure of inter-substrate code agreement**
 something CKA does not capture and that knowledge distillation does not
 directly test. Three concrete distinctions:
 
-1. **MI/H is permutation-invariant at the code level; CKA is not.**
+1. **MI/H captures soft many-to-one code dependence that CKA misses.**
    On the same trained MLP/LIF pairs, CKA(argmax one-hots) = 0.910
-   while MI/H = 0.953. CKA captures geometric alignment with a fixed
-   basis; MI captures statistical dependence modulo any bijection of
-   the 64-code alphabet — which is what matters when two substrates
-   communicate through a shared discrete protocol (any consistent
-   re-labelling is semantically equivalent).
+   while MI/H = 0.953 — a consistent 4.3-percentage-point gap across
+   3 seeds. Both metrics are invariant to clean label permutations:
+   CKA via feature-orthogonal invariance (Kornblith 2019), MI by
+   construction. The gap comes instead from **soft, non-bijective
+   mappings**: when MLP code 5 splits into LIF codes 17 and 23
+   depending on input sub-structure, MI captures the full statistical
+   dependence whereas CKA(one-hot) only captures the linear-algebraic
+   structure, which penalises the split.
 2. **Cross-substrate merge is not knowledge distillation.** In KD the
    student is trained end-to-end to match the teacher's soft labels.
    In cross-merge the student's core and emit head are frozen; only a
@@ -52,21 +61,21 @@ batch = 1024, 3 seeds.
 
 - **CKA pre-emit (0.747)** — the hidden states of MLP and LIF are
   geometrically different (CKA < 1). They don't "think" the same way
-  internally, despite training on the same task. This matches the
-  general finding that different architectures find different features
-  even for the same data.
+  internally, despite training on the same task. Consistent with the
+  broader finding that different architectures learn different
+  features on the same data (Morcos 2018, Kornblith 2019).
 - **CKA emit logits (0.624)** — the emit heads amplify the geometric
-  divergence. The logit vectors are even less aligned than the hidden
-  states.
+  divergence. Logit vectors are even less aligned than hidden states.
 - **CKA argmax one-hot (0.910)** — collapsing to the argmax re-aligns
-  the two substrates: they agree on which code fires, even if the raw
-  logit geometry differs. This is the regime our MI/H operates in.
-- **MI/H (0.953)** — strictly higher than CKA argmax (0.910). MI
-  captures statistical dependence under *any* permutation of code
-  labels; CKA requires alignment in the original basis. If MLP's code
-  23 systematically maps to LIF's code 47 on the same inputs, MI
-  records full agreement; CKA of one-hots does not, because the basis
-  differs.
+  the two substrates: they agree on which code fires, even if the
+  raw logit geometry differs.
+- **MI/H (0.953)** — strictly higher than CKA argmax (0.910). Both
+  are invariant to clean label permutations (CKA via orthogonal
+  invariance, MI by construction). The gap therefore is not about
+  permutation — it's about **sub-bijective structure**. When MLP
+  code 5 partly maps to LIF code 17 and partly to LIF code 23 based
+  on input conditions, MI captures the full conditional dependence;
+  CKA of one-hots only captures the bilinear projection.
 
 ### What this means for the paper
 
@@ -166,10 +175,28 @@ alphabet (a protocol), not a continuous embedding.
   as empirical evidence, though the task distribution is
   synthetic/MNIST-only.
 - **Moschella et al. 2022, "Relative representations enable zero-shot
-  latent space communication"** — shows that similarity-based
-  relative encodings generalize across independently trained models.
-  Closer to our claim in spirit; uses continuous relative encodings,
-  we use discrete codebook.
+  latent space communication"** (ICLR 2023 notable top 5%,
+  arXiv:2209.15430). Verified by fetching the abstract: representation
+  is pairwise *cosine similarity to a fixed set of anchors* —
+  **continuous**, not discrete. Invariance property: quasi-isometric
+  (angles between encodings preserved across training runs). Enables
+  zero-shot model stitching across CNNs, GCNs, transformers on
+  images/text/graphs. **Distinction from ours**: Moschella encodes
+  sample *relative* to anchors in continuous space; we encode sample
+  into a *discrete code* via learned codebook. Our invariance is label
+  permutation (relabelling the 64 codes); theirs is latent isometry
+  (rotating the continuous space). Same philosophical aim — enabling
+  cross-architecture communication without shared training — two
+  different mathematical routes.
+
+- **"Are neural network representations universal or idiosyncratic?"
+  (Nature Machine Intelligence 2025, s42256-025-01139-y).** Very
+  recent — explicitly frames the live debate between the universal
+  representation hypothesis (all networks converge on a common
+  computational substrate) and the idiosyncratic view (networks
+  diverge by architecture, objective, learning rule). Our 0.91–0.96
+  MI/H and 0.99 round-trip belong in this debate as evidence for a
+  soft universal hypothesis at the *discrete-output* level.
 - **Koch et al. 2024, "On Emergent Similarity"** — review of when
   convergent representations emerge.
 
