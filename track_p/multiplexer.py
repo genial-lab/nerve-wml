@@ -49,6 +49,9 @@ class GammaThetaMultiplexer(nn.Module):
     nn.Parameter initialized as PSK and learned via downstream loss.
     """
 
+    constellation: nn.Parameter
+    _t_grid: Tensor
+
     def __init__(
         self, cfg: GammaThetaConfig | None = None, *, seed: int | None = None
     ) -> None:
@@ -88,9 +91,44 @@ class GammaThetaMultiplexer(nn.Module):
                 f"K={codes.shape[-1]} exceeds symbols_per_theta="
                 f"{self.cfg.symbols_per_theta} (Lisman-Idiart capacity bound)"
             )
-        raise NotImplementedError(
-            "γ/θ PAC encoder pending — contract pinned by tests, impl in follow-up PR"
-        )
+        k_active = codes.shape[-1]
+        t = self._t_grid  # [n_samples]
+        n_samples = t.numel()
+        k_cap = self.cfg.symbols_per_theta
+        window_n = n_samples // k_cap
+
+        # Symbol constellation IQ per code: [batch, k_active, 2].
+        sym = self.constellation[codes]
+
+        # γ carrier quadratures (in-phase = cos, quadrature = sin): [n_samples].
+        two_pi_gamma_t = 2.0 * torch.pi * self.cfg.gamma_hz * t
+        gamma_i = torch.cos(two_pi_gamma_t)
+        gamma_q = torch.sin(two_pi_gamma_t)
+
+        # θ envelope — smooth cos, depth 0.45 so env ∈ [0.1, 1.0] never nulls.
+        # Aligns with Harris & Gong 2026 (Nat Commun) on smooth traveling-wave
+        # envelopes over rect θ windows (Q4 default, see issue #1). Depth 0.45
+        # gives a detectable PAC signature without nulling the demod divide.
+        two_pi_theta_t = 2.0 * torch.pi * self.cfg.theta_hz * t + theta_phase_offset
+        theta_env = 0.55 + 0.45 * torch.cos(two_pi_theta_t)
+
+        # Per-symbol window masks [k_active, n_samples]; only active symbols populated.
+        idx = torch.arange(n_samples, device=t.device)
+        symbol_idx = torch.clamp(idx // window_n, max=k_cap - 1)
+        window_masks = (
+            symbol_idx.unsqueeze(0)
+            == torch.arange(k_cap, device=t.device).unsqueeze(1)
+        ).to(t.dtype)[:k_active]
+
+        # Sum symbol IQ contributions along active windows: [batch, n_samples].
+        i_t = (sym[..., 0:1] * window_masks.unsqueeze(0)).sum(dim=1)
+        q_t = (sym[..., 1:2] * window_masks.unsqueeze(0)).sum(dim=1)
+
+        carrier = (
+            i_t * gamma_i.unsqueeze(0) + q_t * gamma_q.unsqueeze(0)
+        ) * theta_env.unsqueeze(0)
+
+        return carrier.to(torch.float32)
 
     def demodulate(self, carrier: Tensor, *, hard: bool = True) -> Tensor:
         """Recover code tensor from a γ/θ carrier.
@@ -100,8 +138,43 @@ class GammaThetaMultiplexer(nn.Module):
             hard: argmax when True, Gumbel-softmax when False (mirrors Transducer).
 
         Returns:
-            codes: [B, K] long.
+            codes: [B, K] long, K = symbols_per_theta.
         """
-        raise NotImplementedError(
-            "γ/θ PAC demodulator pending — contract pinned by tests, impl in follow-up PR"
+        if not hard:
+            raise NotImplementedError(
+                "soft demodulation (hard=False) pending — Q2 arbitration in issue #1"
+            )
+        batch, n_samples = carrier.shape
+        t = self._t_grid
+        k_cap = self.cfg.symbols_per_theta
+        window_n = n_samples // k_cap
+
+        # γ quadratures and θ envelope (must match forward exactly).
+        two_pi_gamma_t = 2.0 * torch.pi * self.cfg.gamma_hz * t
+        gamma_i = torch.cos(two_pi_gamma_t)
+        gamma_q = torch.sin(two_pi_gamma_t)
+        two_pi_theta_t = 2.0 * torch.pi * self.cfg.theta_hz * t
+        theta_env = 0.55 + 0.45 * torch.cos(two_pi_theta_t)
+
+        # Undo θ envelope (safe: env ∈ [0.1, 1.0] never nulls).
+        carrier_norm = carrier / theta_env.unsqueeze(0)
+
+        # Per-window LSTSQ recovers (i, q) exactly at zero noise regardless
+        # of γ orthogonality over short windows.
+        recovered = torch.empty(
+            batch, k_cap, 2, device=carrier.device, dtype=torch.float32
         )
+        for k in range(k_cap):
+            start = k * window_n
+            end = (k + 1) * window_n if k < k_cap - 1 else n_samples
+            basis = torch.stack(
+                [gamma_i[start:end], gamma_q[start:end]], dim=-1
+            )  # [n, 2]
+            rhs = carrier_norm[:, start:end].T  # [n, batch]
+            sol = torch.linalg.lstsq(basis, rhs).solution  # [2, batch]
+            recovered[:, k, :] = sol.T.to(torch.float32)
+
+        # Nearest-constellation assignment — dist [batch*k_cap, A], argmin → [batch, k_cap].
+        dist = torch.cdist(recovered.reshape(-1, 2), self.constellation)
+        codes = dist.argmin(dim=-1).reshape(batch, k_cap)
+        return codes
