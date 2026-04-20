@@ -200,6 +200,34 @@ def test_hardware_jitter_is_instantiable_but_unimplemented():
         mux.forward(codes, noise=jitter)
 
 
+# ---------------------------------------------------------------------------
+# Role out-of-band channel (Q5 hook)
+# ---------------------------------------------------------------------------
+
+def test_role_parameter_default_none_is_current_behavior():
+    """forward(codes) ≡ forward(codes, role=None) — no channel added.
+    bouba_sens v0.1 uses the None path; the hook stays transparent."""
+    mux = GammaThetaMultiplexer(seed=0)
+    cfg = mux.cfg
+    codes = torch.randint(0, cfg.alphabet_size, (2, cfg.symbols_per_theta))
+    a = mux.forward(codes)
+    b = mux.forward(codes, role=None)
+    assert torch.equal(a, b)
+    assert a.shape == (2, mux._t_grid.numel())  # 1-channel shape
+
+
+def test_role_parameter_when_provided_raises():
+    """role=<tensor> raises NotImplementedError — 2-channel carrier is
+    deferred to bouba_sens v1.2 per issue #1 Q5 (additive extension, not
+    in-band 32/32 alphabet split)."""
+    mux = GammaThetaMultiplexer(seed=0)
+    cfg = mux.cfg
+    codes = torch.randint(0, cfg.alphabet_size, (1, cfg.symbols_per_theta))
+    role = torch.zeros_like(codes)
+    with pytest.raises(NotImplementedError, match="out-of-band role"):
+        mux.forward(codes, role=role)
+
+
 def test_carrier_spectrum_dominated_by_gamma_band():
     """Constant-code carrier reduces to pure γ × θ-env → peak at γ bin.
 

@@ -151,6 +151,7 @@ class GammaThetaMultiplexer(nn.Module):
         *,
         theta_phase_offset: float = 0.0,
         noise: NoiseModel | None = None,
+        role: Tensor | None = None,
     ) -> Tensor:
         """Encode codes onto a γ/θ PAC carrier.
 
@@ -158,17 +159,27 @@ class GammaThetaMultiplexer(nn.Module):
             codes: [B, K] long, K ≤ symbols_per_theta.
             theta_phase_offset: phase offset in radians for the θ carrier.
             noise: optional NoiseModel applied to the clean carrier. None
-                (default) returns the clean signal. AWGN(σ) adds Gaussian
-                noise; HardwareJitterNoise is a stub for future substrate-
-                specific jitter (Loihi 2, SpiNNaker2).
+                (default) returns the clean signal.
+            role: optional [B, K] long carrying Role.PREDICTION / Role.ERROR
+                per symbol. None (default) is the 1-channel case and is
+                what bouba_sens v0.1 uses. When provided, returns a
+                2-channel carrier (shape [B, 2, T]) — pending bouba_sens
+                v1.2 per issue #1 Q5 arbitration (out-of-band not in-band
+                split, to preserve the full 64-code alphabet).
 
         Returns:
-            carrier: [B, T] float32, T = sample_rate_hz // theta_hz.
+            carrier: [B, T] float32 when role is None.
+            carrier: [B, 2, T] float32 when role is provided (future).
         """
         if codes.shape[-1] > self.cfg.symbols_per_theta:
             raise ValueError(
                 f"K={codes.shape[-1]} exceeds symbols_per_theta="
                 f"{self.cfg.symbols_per_theta} (Lisman-Idiart capacity bound)"
+            )
+        if role is not None:
+            raise NotImplementedError(
+                "out-of-band role channel pending — bouba_sens v1.2 scope "
+                "per issue #1 Q5 arbitration"
             )
         k_active = codes.shape[-1]
         t = self._t_grid  # [n_samples]
