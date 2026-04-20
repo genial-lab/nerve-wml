@@ -161,6 +161,47 @@ same frozen-student setup, and report the three accuracies side-by-
 side. That would quantify how much of cross-merge's 97 % ratio is
 *protocol expressiveness* vs *linear-readout capacity*.
 
+### KD match-compute ablation (v1.2.3, empirically verified)
+
+Script: `scripts/measure_kd_ablation.py`. Three conditions at
+matched compute (same teacher steps, same transfer steps, same
+Adam lr) on `HardFlowProxyTask` (12-class XOR-on-noise), 3 seeds:
+
+| Condition | What's passed teacher→student | Who's trained | Mean acc (3 seeds) |
+|---|---|---|---|
+| **(A) Cross-merge (ours)** | 64-dim protocol logits | Transducer only | **0.508** |
+| **(B) KD-through-transducer** | 12-dim softmax at T=4 | Transducer only | **0.520** |
+| **(C) Vanilla Hinton KD** | 12-dim softmax at T=4 | LIF end-to-end | **0.534** |
+| Teacher MLP reference | — | — | 0.556 |
+
+Per-seed gap $\Delta$(cross − KD-through-T) = {+0.78, −6.84, +2.34}%,
+mean = $-1.24\%$ — **statistically indistinguishable across 3 seeds**
+given the ~7 % inter-seed variance.
+
+**Honest reading.** At matched compute on this task, cross-merge is
+**not strictly better** than KD-through-transducer. The 6-bit
+protocol alphabet carries more *formal* channel capacity than the
+3.6-bit class distribution, but that extra capacity does not
+translate into measurable task-accuracy gain at the 16-neuron scale
+we tested. Vanilla KD outperforms both by +0.026 mean — unsurprising
+because the student can train its own internal features.
+
+**What this means for the paper's novelty claim.** Cross-merge is
+not empirically superior to KD on task accuracy. Its contribution is
+**methodological, not performance-based**: it isolates
+*protocol channel capacity* (how much the discrete alphabet can
+carry) from *student learning capacity* (how well the LIF can
+re-train its core). Vanilla KD conflates both; KD-through-transducer
+isolates the channel but still supervises with the teacher's class
+distribution. Only cross-merge supervises strictly with ground-truth
+labels and passes only the protocol alphabet — that design isolates
+the Nerve Protocol from both student learning and teacher
+supervision.
+
+A reviewer concluding "this is just KD" after the v1.2.3 table is
+factually wrong about the mechanism and factually right about the
+accuracy. The paper should say so.
+
 ## Literature scan
 
 ### Representational similarity
