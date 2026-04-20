@@ -1,6 +1,11 @@
 # nerve-wml
 
+[![DOI](https://zenodo.org/badge/DOI/pending.svg)](https://zenodo.org/record/pending)
+[![OSF](https://img.shields.io/badge/OSF-10.17605%2FOSF.IO%2FQ6JYN-lightgrey)](https://doi.org/10.17605/OSF.IO/Q6JYN)
+
 **Substrate-agnostic nerve protocol for inter-module communication in hybrid neural systems.**
+
+Citation : each release is archived on Zenodo (DOI per version) and linked to the parent programme's OSF pre-registration ([10.17605/OSF.IO/Q6JYN](https://doi.org/10.17605/OSF.IO/Q6JYN)). Replace the pending DOI badge with the actual one after the first Zenodo auto-mint (v1.1.2 and above).
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 

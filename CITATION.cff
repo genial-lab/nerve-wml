@@ -47,7 +47,7 @@ identifiers:
     value: "https://osf.io/v7a2j"
     description: "Parent research program OSF project"
 date-released: 2026-04-20
-version: "1.1.0"
+version: "1.1.2"
 preferred-citation:
   type: unpublished
   title: "dreamOfkiki: A Substrate-Agnostic Formal Framework for Dream-Based Knowledge Consolidation in Artificial Cognitive Systems"
