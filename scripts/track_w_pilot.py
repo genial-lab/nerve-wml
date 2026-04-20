@@ -654,6 +654,131 @@ def run_w_triple_substrate(
     }
 
 
+def run_triple_pool_hard(
+    n_wmls: int = 15, steps: int = 400, seed: int = 0,
+) -> dict:
+    """Pool-scale triple-substrate on HardFlowProxyTask (v1.1.2).
+
+    Uses build_triple_pool (1/3 MLP, 1/3 LIF, 1/3 TRF). Each cohort is
+    trained against a fresh task instance for RNG isolation. Reports
+    mean accuracy per substrate + triple_gap = (max − min)/max over
+    the cohort means.
+    """
+    import numpy as np
+    import torch.nn.functional as F  # noqa: N812
+
+    from track_w._surrogate import spike_with_surrogate
+    from track_w.pool_factory import build_triple_pool, k_for_n
+    from track_w.tasks.hard_flow_proxy import HardFlowProxyTask
+    from track_w.transformer_wml import TransformerWML
+
+    torch.manual_seed(seed)
+    nerve = MockNerve(n_wmls=n_wmls, k=k_for_n(n_wmls), seed=seed)
+    nerve.set_phase_active(gamma=True, theta=False)
+    pool = build_triple_pool(n_wmls=n_wmls, seed=seed)
+
+    # MLP cohort — fresh task.
+    task_mlp = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
+    for w in pool:
+        if isinstance(w, MlpWML):
+            train_wml_on_task(w, nerve, task_mlp, steps=steps, lr=1e-2)
+
+    # LIF cohort — fresh task, spike + learned head.
+    task_lif = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
+    lif_encoders: dict[int, torch.nn.Linear] = {}
+    for w in pool:
+        if isinstance(w, LifWML):
+            enc = torch.nn.Linear(16, w.n_neurons)
+            opt = torch.optim.Adam(
+                list(w.parameters()) + list(enc.parameters()), lr=1e-2,
+            )
+            for _ in range(steps):
+                x, y = task_lif.sample(batch=64)
+                i_in = w.input_proj(enc(x))
+                spikes = spike_with_surrogate(i_in, v_thr=w.v_thr)
+                logits = w.emit_head_pi(spikes)[:, : task_lif.n_classes]
+                loss = F.cross_entropy(logits, y)
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+            lif_encoders[w.id] = enc
+
+    # TRF cohort — fresh task.
+    task_trf = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
+    for w in pool:
+        if isinstance(w, TransformerWML):
+            train_wml_on_task(w, nerve, task_trf, steps=steps, lr=1e-2)
+
+    # Eval on common fresh task.
+    task_eval = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
+    x, y = task_eval.sample(batch=512)
+    accs_mlp, accs_lif, accs_trf = [], [], []
+    with torch.no_grad():
+        for w in pool:
+            if isinstance(w, MlpWML):
+                pred = w.emit_head_pi(w.core(x))[:, : task_eval.n_classes].argmax(-1)
+                accs_mlp.append((pred == y).float().mean().item())
+            elif isinstance(w, LifWML):
+                enc = lif_encoders[w.id]
+                i_in = w.input_proj(enc(x))
+                spikes = spike_with_surrogate(i_in, v_thr=w.v_thr)
+                pred = w.emit_head_pi(spikes)[:, : task_eval.n_classes].argmax(-1)
+                accs_lif.append((pred == y).float().mean().item())
+            elif isinstance(w, TransformerWML):
+                pred = w.emit_head_pi(w.core(x))[:, : task_eval.n_classes].argmax(-1)
+                accs_trf.append((pred == y).float().mean().item())
+
+    mean_mlp = float(np.mean(accs_mlp))
+    mean_lif = float(np.mean(accs_lif))
+    mean_trf = float(np.mean(accs_trf))
+    means = [mean_mlp, mean_lif, mean_trf]
+    triple_gap = (max(means) - min(means)) / max(max(means), 1e-6)
+    return {
+        "mean_acc_mlp": mean_mlp,
+        "mean_acc_lif": mean_lif,
+        "mean_acc_trf": mean_trf,
+        "n_mlp": len(accs_mlp),
+        "n_lif": len(accs_lif),
+        "n_trf": len(accs_trf),
+        "triple_gap": triple_gap,
+    }
+
+
+def run_triple_pool_hard_multiseed(
+    seeds: list[int] | None = None, n_wmls: int = 15, steps: int = 400,
+) -> dict:
+    """Multi-seed triple-substrate at pool scale (N=15).
+
+    5 seeds of 15-WML pools (5 MLP + 5 LIF + 5 TRF) on HardFlowProxyTask.
+    Closes the symmetry gap in the v1.1.1 evidence matrix: the third
+    substrate now has multi-seed pool-scale measurements too.
+    """
+    import numpy as np
+
+    if seeds is None:
+        seeds = list(range(5))
+    per_seed = [
+        run_triple_pool_hard(n_wmls=n_wmls, steps=steps, seed=s) for s in seeds
+    ]
+    triple_gaps = [r["triple_gap"] for r in per_seed]
+    accs_mlp = [r["mean_acc_mlp"] for r in per_seed]
+    accs_lif = [r["mean_acc_lif"] for r in per_seed]
+    accs_trf = [r["mean_acc_trf"] for r in per_seed]
+    return {
+        "seeds":             list(seeds),
+        "triple_gaps":       triple_gaps,
+        "accs_mlp":          accs_mlp,
+        "accs_lif":          accs_lif,
+        "accs_trf":          accs_trf,
+        "mean_triple_gap":   float(np.mean(triple_gaps)),
+        "median_triple_gap": float(np.median(triple_gaps)),
+        "max_triple_gap":    float(np.max(triple_gaps)),
+        "mean_acc_mlp":      float(np.mean(accs_mlp)),
+        "mean_acc_lif":      float(np.mean(accs_lif)),
+        "mean_acc_trf":      float(np.mean(accs_trf)),
+    }
+
+
 def run_w_triple_substrate_multiseed(
     seeds: list[int] | None = None,
     steps: int = 400,
