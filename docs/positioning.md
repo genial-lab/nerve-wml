@@ -95,13 +95,24 @@ which is why those two metrics are even higher (0.99 and 0.97).
 
 ## Conceptual: cross-merge vs knowledge distillation
 
-Knowledge distillation (Hinton, Vinyals, Dean, 2015) sets up:
+Knowledge distillation (Hinton, Vinyals, Dean, 2015;
+arXiv:1503.02531, verified 2026-04-20) sets up:
 
-    Teacher (frozen) → soft labels p_T(y|x)
+    Teacher (frozen) → soft class probabilities p_T(y|x; T)
                              ↓
                     Student (end-to-end trainable)
                              ↓
-                    Loss = KL(p_T || p_S)  (+ optional CE on hard labels)
+        Loss = α · CE(p_S(·;T), p_T(·;T)) · T² + (1 − α) · CE_hard(y)
+
+Verified details:
+- Temperature T softens the teacher's softmax; same T applied to the
+  student's softmax during distillation training. T² scaling
+  compensates for the gradient attenuation at high T.
+- Teacher passes its **output probability distribution over class
+  labels** (n_classes values), not hidden states.
+- Student is trained **end-to-end** on the combined loss (soft + hard).
+- Works even when student and teacher share the same architecture —
+  the soft targets carry information the hard labels do not.
 
 Cross-substrate merge (our Gate M-cross, v0.8) sets up:
 
@@ -115,21 +126,27 @@ Cross-substrate merge (our Gate M-cross, v0.8) sets up:
                                                      ↓
                                               CE vs hard labels y
 
-Three structural differences from KD:
+Three structural differences from KD (now cleanly formulated with
+the verified KD loss in mind):
 
-1. **What is trained.** KD trains the student. Cross-merge trains
-   neither substrate — only a linear transducer. Both substrates'
-   inductive biases are preserved by construction.
-2. **What is passed.** KD passes the teacher's full softmax
-   distribution over labels. Cross-merge passes logits over the 64-
-   code *protocol alphabet* (typically ≫ n_classes), so the message
-   carries more bits than the label entropy. This is the protocol
-   channel's capacity.
-3. **What is supervised.** KD's loss compares the student's
-   distribution to the teacher's. Cross-merge's loss compares the
-   student's *final label prediction* to the ground-truth label. The
-   teacher provides features through the transducer but never
-   supervises the student's output directly.
+1. **What is trained.** KD trains the **student end-to-end** through
+   its combined soft + hard loss. Cross-merge trains **neither
+   substrate** — only a linear transducer. The substrates' inductive
+   biases are preserved by freezing both their cores and emit heads.
+   This isolates *protocol channel capacity* from *student learning
+   capacity*.
+2. **What is passed.** KD passes the teacher's **softened class
+   distribution** p_T(y | x; T) — n_classes values shaped by
+   temperature. Cross-merge passes **pre-argmax logits over the
+   protocol alphabet** (64 or 256 values ≫ n_classes). The channel
+   capacity is log₂(alphabet) bits per emission vs log₂(n_classes)
+   for KD.
+3. **What is supervised.** KD's loss is a **KL / cross-entropy
+   between teacher and student distributions** (weighted with the
+   hard-label CE). Cross-merge's loss is **only the hard-label CE**
+   applied to the student's final output — the teacher never
+   supervises the student's distribution directly; it only supplies
+   input features through the transducer.
 
 A reviewer will probably say *"this is just distillation with extra
 steps"*. The response is that (a) the empirical question is
@@ -289,6 +306,27 @@ still trains the student.
 > This is a reproducibility benchmark more than a method; its value
 > is in quantifying a phenomenon that the universal-representations
 > literature describes qualitatively.*
+
+## Reading status (honest)
+
+A peer-review-ready §Related Work requires full reading, not
+abstracts. Tracking what was actually verified during this session:
+
+| Paper | Status | What was verified |
+|---|---|---|
+| **Hinton, Vinyals, Dean 2015** (KD) [arXiv:1503.02531](https://arxiv.org/abs/1503.02531) | ✅ PDF fetched, method section extracted | Full loss equation, temperature, T² scaling, end-to-end student training, soft class probabilities (not hidden states). Our KD vs cross-merge distinctions above are now grounded. |
+| **Kornblith et al. 2019** (CKA) [arXiv:1905.00414](https://arxiv.org/abs/1905.00414) | ✅ Abstract + key invariance claim verified | CKA IS invariant to feature permutation (corrected earlier error). |
+| **Moschella et al. 2022** (Relative Repr) [arXiv:2209.15430](https://arxiv.org/abs/2209.15430) | ⚠️ Abstract + search summary only | Anchor-based continuous similarity; invariance is latent isometry. PDF fetch failed (403 / size). Can confirm philosophical neighbour, cannot confirm exact CKA-comparison results. |
+| **Nature MI 2025 "universal vs idiosyncratic"** [s42256-025-01139-y](https://www.nature.com/articles/s42256-025-01139-y) | ⚠️ Confirmed to be a 2-page editorial (pp. 1589–1590), not an empirical paper | The underlying empirical work is Saxe et al. 2024 bioRxiv 2024.12.26.629294 (PMC11703180) — fetch failed (403). Status: known voisin, content unread. |
+| Morcos 2018 SVCCA, Foerster 2016 multi-agent, Rueckauer 2017 ANN→SNN | ❌ Cited from memory, not refetched | Paper needs these verified before submission. |
+
+The most important unverified claim is our positioning vs
+**Moschella 2022 relative representations**. If it turns out they
+quantify something very close to our MI/H — e.g. a normalised
+pairwise-similarity-sharing metric — the novelty claim of this paper
+narrows significantly. A 1-day careful reading of the Moschella PDF
+(via a non-403 mirror or local download) is the highest-ROI action
+before arXiv submission.
 
 ## Next steps for a stronger paper
 
