@@ -612,7 +612,30 @@ The following scientific shortcuts were taken to ship gates P and W on schedule.
 
 - **Inter-substrate information transmission** — RESOLVED (2026-04-20, v1.1). Previously Claim B was architectural (transducers postulated to transmit information across substrates). Now three direct measurements pin it: $\mathrm{MI}(c_{\text{MLP}}, c_{\text{LIF}}) / H(c_{\text{MLP}}) = 0.91$ at N=1 and $0.96$ at N=16 pool scale (192 cross-pair measurements); round-trip fidelity MLP→LIF→MLP $= 0.99$; cross-substrate merge ratio $= 0.97$ (LIF frozen, fed only by MLP-emitted codes through a learned transducer). Pool-scale (2) and (3) hold over 64 cross-pairs per seed. See `scripts/measure_info_transmission.py`, `tests/integration/track_w/test_info_transmission.py`, `papers/paper1/figures/info_transmission.pdf`.
 
-- **Third substrate (TransformerWML)** — ADDED (2026-04-20, v1.1). Attention-based WML validates substrate-agnostic claim across three structurally distinct implementations. Saturates FlowProxyTask at 1.000 (triple-gap 0 %). On HardFlowProxyTask at N=1, median triple-gap 5.59 % (5 seeds). Pool-scale triple-substrate measurement (N=16/32 with TRF included) is **still open** — requires pool_factory refactor to support 3 substrate types.
+- **Third substrate (TransformerWML)** — ADDED (2026-04-20, v1.1). Attention-based WML validates substrate-agnostic claim across three structurally distinct implementations. Saturates FlowProxyTask at 1.000 (triple-gap 0 %). On HardFlowProxyTask at N=1, median triple-gap 5.59 % (5 seeds). Pool-scale triple-substrate (`build_triple_pool`) covered in v1.1.4: N=15 / N=30 / N=60 median triple-gaps 8.16 % / 5.86 % / 4.33 %, same monotonic decay as pairwise.
+
+- **Real-data validation (MNIST)** — ADDED (2026-04-20, v1.2.0). `track_w/tasks/mnist.py` + `scripts/run_mnist_pilots.py`. `WmlConfig.mnist()` preset (input_dim=784, d_hidden=128, alphabet=256). Measured: MLP=0.942, LIF=0.941, median gap 1.03 %, MI/H=0.882 over 3 seeds. Structural signal tightens the gap below the synthetic plateau.
+
+- **Architecture scale orthogonality** — ADDED (2026-04-20, v1.2.0). At d_hidden=128 on HardFlowProxyTask, substrate gap AMPLIFIES to ~26 % median (3 seeds). LIF's spike expressivity scales with n_neurons. Arch scale and pool scale are orthogonal dimensions: pool compresses, arch amplifies. Claim B (MI/H > 0.50) survives even when accuracies diverge.
+
+- **Temporal streaming** — ADDED (2026-04-20, v1.2.0). `track_w/tasks/sequential.py` + `track_w/streaming_hooks.py`. SequentialFlowProxyTask (16-token sequence, label at t_b=13). MI/H = 0.72 at trained step, 0.71 at filler step. Code alignment is structural, not task-pressure-gated.
+
+- **MoonsTask (2nd distribution)** — ADDED (2026-04-20, v1.1.4). 2-class two-moons task. MI/H = 0.74 over 3 seeds. Claim B generalizes beyond HardFlowProxyTask.
+
+- **MI/H vs CKA comparison** — ADDED (2026-04-20, v1.2.1). Script `scripts/measure_cka_vs_mi.py`. Over 3 seeds: MI/H = 0.953 vs CKA argmax one-hot = 0.910. Gap tracks soft many-to-one code mappings that CKA's bilinear structure misses. Both metrics are invariant to clean label permutations (Kornblith 2019). Our MI/H is not CKA renamed — see `docs/positioning.md`.
+
+- **KD match-compute ablation** — ADDED (2026-04-20, v1.2.3). Script `scripts/measure_kd_ablation.py`. Three conditions on HardFlowProxyTask (3 seeds, 300 transfer steps): cross-merge 0.508, KD-through-transducer 0.520, vanilla Hinton KD 0.534, teacher 0.556. Cross-merge ≈ KD within noise. Cross-merge's contribution is methodological (isolating protocol channel capacity) not accuracy.
+
+- **Related Work citations verified** — ADDED (2026-04-20, v1.2.2). Paper §Related Work now cites Kornblith 2019, Morcos 2018, Moschella 2022, Saxe 2024, Hinton 2015 with full WebFetch-verified provenance documented in `docs/positioning.md` §"Reading status".
+
+### v1.2 architectural additions (code-level)
+
+- `track_w/configs/wml_config.py` — WmlConfig dataclass with `.mnist()`, `.large()` presets, decouples input_dim from substrate hidden width.
+- `input_dim` parameter on `MlpWML`, `LifWML`, `TransformerWML` (backward-compatible, defaults to hidden width).
+- `track_w.pool_factory.build_pool_cfg(cfg)` — config-driven pool factory.
+- `track_w.pool_factory.build_triple_pool(n_wmls)` — 3-substrate pool factory.
+- `track_w/streaming_hooks.py` — `rollout_mlp_emit_codes`, `rollout_lif_emit_codes` for per-timestep code emission on sequential tasks.
+- `harness.run_registry.run_id_for_pilot(pilot_name, seed)` — deterministic run_ids for v1.1 pilots without explicit topology.
 - **W4 true continual learning** — RESOLVED (2026-04-18). Shared-head baseline (`run_w4_shared_head`) shows **100 % forgetting without mitigation**. Rehearsal recipe (`run_w4_rehearsal` with `rehearsal_frac=0.3`) drops it to **0 %**, well under the 20 % gate. See `tests/integration/track_w/test_gate_w4_honest.py`.
 - **P1 fully-random VQ convergence** — RESOLVED (2026-04-18). `VQCodebook.rotate_dead_codes` (Zeghidour 2022) invoked every 500 steps brings dead-code fraction from 39 % → **0 %** at 16 000 steps, without any MOG cluster-center leak. Gate enforced by `tests/integration/test_gate_p1_random.py`.
 

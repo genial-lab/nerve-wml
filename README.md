@@ -9,7 +9,7 @@ Citation : each release is archived on Zenodo (DOI per version) and linked to th
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 
-## Status — v1.2.0 (2026-04-20)
+## Status — v1.2.3 (2026-04-20)
 
 The project is now empirically defensible across three experimental axes: real data, architecture scale, and temporal streaming. Two claims are quantified:
 
@@ -45,6 +45,18 @@ LIF's spike dynamics give it a substrate-intrinsic $\sim 2$–$3\%$ expressivity
 5. **Substrate-direction is stable in 15/15 seeds.** LIF's spike edge is a real property, not noise.
 6. **Architecture scale and pool scale are orthogonal.** Pool compresses the gap; arch width amplifies it.
 7. **Code alignment is structural, not task-gated.** MI at filler timesteps $\approx$ MI at trained timesteps (0.71 vs 0.72).
+
+### Methodological findings (v1.2.1–v1.2.3)
+
+- **MI/H vs CKA on the same argmax codes** (v1.2.1). Mean 0.953 (MI/H) vs 0.910 (CKA argmax one-hot) over 3 seeds. The 4.3 pp gap tracks soft many-to-one code mappings that kernel-alignment metrics miss. MI/H is not CKA renamed — it is the discrete-protocol cousin with measurably different semantics. See `scripts/measure_cka_vs_mi.py` and `docs/positioning.md`.
+- **Related Work verified** (v1.2.2). Paper §Related Work cites Kornblith 2019 CKA, Morcos 2018 PWCCA, Moschella 2022 relative representations (ICLR 2023), Saxe 2024 universality, and Hinton 2015 KD — all verified via WebFetch, provenance table in `docs/positioning.md`.
+- **KD match-compute ablation honest verdict** (v1.2.3). At matched compute on HardFlowProxyTask (3 seeds), cross-merge (0.508) ≈ KD-through-transducer (0.520) within noise. Vanilla Hinton KD (0.534) is best because the student can re-train its core. Cross-merge's contribution is **methodological, not performance-based**: it isolates protocol channel capacity from student learning capacity by freezing both substrates and supervising with ground-truth labels only. See `scripts/measure_kd_ablation.py`.
+
+### What the paper genuinely claims vs not
+
+Three findings probably novel: (1) the four-point scaling law with plateau at $\sim 2\text{–}3\%$ substrate-intrinsic floor, (2) reproducible $\sim 2\text{–}3\%$ LIF spike-expressivity edge over matched-capacity MLP on XOR-on-noise (15/15 seeds), (3) orthogonality of pool-scale (compresses gap) and architecture-scale (amplifies gap).
+
+The paper explicitly does **not** claim: a new learning algorithm, superiority over knowledge distillation on task accuracy, or universal representations — that debate is addressed by Saxe 2024 and the Nature MI 2025 editorial (s42256-025-01139-y) cited in `docs/positioning.md`.
 
 ## Status — 11 gates
 
