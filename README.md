@@ -9,19 +9,42 @@ Citation : each release is archived on Zenodo (DOI per version) and linked to th
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 
-## Status — 11 gates + 3 substrates + scaling law (v1.1.0)
+## Status — v1.2.0 (2026-04-20)
 
-Release v1.1.0 (2026-04-20) adds three **structurally distinct substrates** validating the polymorphism claim, a **four-point scaling law**, and **direct measurement of inter-substrate information transmission** (see `CHANGELOG.md`).
+The project is now empirically defensible across three experimental axes: real data, architecture scale, and temporal streaming. Two claims are quantified:
 
-| Measurement | Value | Meaning |
+**Claim A — Substrate-agnostic polymorphism (task competence converges).**
+Three structurally distinct substrates (stateless MLP, spiking LIF with surrogate-gradient, attention-based Transformer) reach comparable accuracies via the shared Nerve Protocol.
+
+**Claim B — Substrate-agnostic information transmission (codes align).**
+Independent substrates share 91–96 % of their emitted code information; a frozen LIF can recover a trained MLP's task competence via a learned linear transducer.
+
+### Headline measurements
+
+| Axis | Finding | Reference |
 |---|---|---|
-| Scaling-law plateau (N=32, 64) | median gap $\sim 2\text{--}3\%$ (5 seeds each, all < 5 %) | Pool averaging closes the 5 % contract |
-| MI($c_\mathrm{MLP}$; $c_\mathrm{LIF}$) / H($c_\mathrm{MLP}$) | **0.91** (5 seeds) | Shared code between independent substrates |
-| Round-trip fidelity MLP → LIF → MLP | **0.99** (3 seeds) | Information survives the cross-substrate pass |
-| Cross-substrate merge ratio | **0.97** (3 seeds) | Frozen LIF reproduces MLP from codes only |
-| Direction LIF ≥ MLP on hard task | **15/15** seeds | Stable substrate asymmetry (not a bug) |
+| **Pool scaling law** (MLP ↔ LIF, HardFlow) | $N=2 \to 10.71\%$, $N=16 \to 6.71\%$, $N=32 \to 2.39\%$, $N=64 \to 2.73\%$ plateau. 5 % contract holds distributionally at $N \geq 32$. | `figures/w2_hard_scaling.pdf` |
+| **Triple-substrate pool** (MLP + LIF + TRF) | $N=15 \to 8.16\%$, $N=30 \to 5.86\%$, $N=60 \to 4.33\%$ | v1.1.4 |
+| **Mutual information** (codes MLP ↔ LIF) | $\mathrm{MI}/H = 0.91$ at $N=1$ (5 seeds), **0.96** at $N=16$ pool (192 cross-pairs) | `figures/info_transmission.pdf` |
+| **Round-trip fidelity** (MLP → LIF → MLP) | **0.99** mean (3 seeds) | v0.8 |
+| **Cross-substrate merge** (LIF fed by MLP codes only) | **0.97** mean (3 seeds) | v0.8 |
+| **MNIST real data** | MLP 0.942, LIF 0.941, gap **1.03 %**, MI/H **0.882** | `figures/mnist_scaling.pdf` |
+| **MoonsTask** (2nd distribution) | MI/H = **0.74** (3 seeds) | v1.1.4 |
+| **Architecture scale** ($d_\text{hidden}=128$) | Gap AMPLIFIES to 26 % on XOR (arch vs pool scale are orthogonal); Claim B survives | `figures/bigger_arch_scaling.pdf` |
+| **Temporal streaming** (16-token sequence) | MI/H = **0.72** at trained step, **0.71** at filler step — structural alignment | `figures/temporal_info_tx.pdf` |
+| **Direction stability** (LIF ≥ MLP on hard task) | **15/15** pairwise seeds + 5/5 triple-substrate | — |
 
-See Figure `papers/paper1/figures/w2_hard_scaling.pdf` for the scaling law.
+LIF's spike dynamics give it a substrate-intrinsic $\sim 2$–$3\%$ expressivity edge on XOR-style boundaries (plateau floor). Pool averaging compresses this, architecture width amplifies it.
+
+### Seven concrete findings
+
+1. **The original 12.1 % gap was a decoder asymmetry bug, not a substrate limit.** LIF had a fixed cosine decoder, MLP had a learned head; symmetrizing flipped the sign (LIF now leads).
+2. **Single-seed measurements lie.** Multi-seed revealed the N=16 median is 6.7 %, not the lucky 1.68 %.
+3. **Scaling law is real and monotonic.** Four-point decay $10.7\% \to 6.7\% \to 2.4\% \to 2.7\%$ plateau.
+4. **Claim B is empirical, not architectural.** MI 0.91–0.96, round-trip 0.99, cross-merge 0.97.
+5. **Substrate-direction is stable in 15/15 seeds.** LIF's spike edge is a real property, not noise.
+6. **Architecture scale and pool scale are orthogonal.** Pool compresses the gap; arch width amplifies it.
+7. **Code alignment is structural, not task-gated.** MI at filler timesteps $\approx$ MI at trained timesteps (0.71 vs 0.72).
 
 ## Status — 11 gates
 
@@ -38,7 +61,7 @@ See Figure `papers/paper1/figures/w2_hard_scaling.pdf` for the scaling law.
 | [`gate-adaptive-passed`](../../releases/tag/gate-adaptive-passed) | Per-WML alphabet shrinks/grows via `active_mask` + transducer resize |
 | [`gate-llm-advisor-passed`](../../releases/tag/gate-llm-advisor-passed) | Env-gated, never-raising `NerveWmlAdvisor` for micro-kiki, < 50 ms warm latency |
 
-Plus two paper drafts: [`paper-v0.2-draft`](../../releases/tag/paper-v0.2-draft) and [`paper-v0.3-draft`](../../releases/tag/paper-v0.3-draft).
+Paper drafts: `paper-v0.2-draft` … `paper-v0.9-draft` track the iterations that produced the v1.2 claims above. Release tags `v1.0.0`, `v1.1.0` … `v1.1.4`, `v1.2.0` archive the code snapshots; see `CHANGELOG.md` for per-version findings.
 
 ## Install
 
@@ -65,6 +88,21 @@ uv run python scripts/track_w_pilot.py scale # Gate Scale (N=16, N=32)
 uv run python scripts/merge_pilot.py         # Gate M
 uv run python scripts/interpret_pilot.py     # Gate Interp (emits reports/interp/*.html)
 uv run python scripts/adaptive_pilot.py      # Gate Adaptive
+```
+
+## Reproduce the v1.1 / v1.2 findings
+
+```bash
+# v1.1 scaling law + information transmission + triple substrate
+uv run python scripts/render_scaling_figure.py      # 4-point pool scaling (N=2..64)
+uv run python scripts/render_info_tx_figure.py      # MI + round-trip + cross-merge
+uv run python scripts/measure_info_transmission.py  # full info-tx battery
+
+# v1.2 real data + bigger arch + temporal
+uv sync --extra mnist                               # pull torchvision
+uv run python scripts/render_mnist_figure.py        # MNIST Claims A + B
+uv run python scripts/render_bigger_arch_figure.py  # d=128 gap amplification
+uv run python scripts/render_temporal_figure.py     # streaming MI per timestep
 ```
 
 ## Build the paper
