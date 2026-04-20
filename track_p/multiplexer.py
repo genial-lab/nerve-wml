@@ -135,17 +135,25 @@ class GammaThetaMultiplexer(nn.Module):
         )
         theta_env = 0.55 + 0.45 * torch.cos(two_pi_theta_t)
 
-        # Per-symbol window masks [k_active, n_samples]; only active symbols populated.
-        idx = torch.arange(n_samples, device=t.device)
-        symbol_idx = torch.clamp(idx // window_n, max=k_cap - 1)
-        window_masks = (
-            symbol_idx.unsqueeze(0)
-            == torch.arange(k_cap, device=t.device).unsqueeze(1)
-        ).to(t.dtype)[:k_active]
+        # Gaussian per-symbol envelopes (Q4, see issue #1). Each symbol k is
+        # a Gaussian packet centered at (k+0.5)·window_n with σ = window_n/4,
+        # so ~95% of the packet sits inside window k. Overlapping Gaussians
+        # smooth transitions, preserve differentiability, and track the
+        # Harris & Gong 2026 nested traveling-wave preference over rect
+        # windows (which leak spectral energy into θ sidebands).
+        window_centers = (
+            (torch.arange(k_cap, device=t.device, dtype=t.dtype) + 0.5) * window_n
+        )
+        sigma = window_n / 4.0
+        idx = torch.arange(n_samples, device=t.device, dtype=t.dtype)
+        gaussian_masks = torch.exp(
+            -((idx.unsqueeze(0) - window_centers.unsqueeze(1)) ** 2)
+            / (2.0 * sigma**2)
+        )[:k_active]  # [k_active, n_samples]
 
-        # Sum symbol IQ contributions along active windows: [batch, n_samples].
-        i_t = (sym[..., 0:1] * window_masks.unsqueeze(0)).sum(dim=1)
-        q_t = (sym[..., 1:2] * window_masks.unsqueeze(0)).sum(dim=1)
+        # Sum symbol IQ contributions weighted by Gaussians: [batch, n_samples].
+        i_t = (sym[..., 0:1] * gaussian_masks.unsqueeze(0)).sum(dim=1)
+        q_t = (sym[..., 1:2] * gaussian_masks.unsqueeze(0)).sum(dim=1)
 
         carrier = (
             i_t * gamma_i.unsqueeze(0) + q_t * gamma_q.unsqueeze(0)
@@ -195,23 +203,35 @@ class GammaThetaMultiplexer(nn.Module):
         # Undo θ envelope (safe: env ∈ [0.1, 1.0] never nulls).
         carrier_norm = carrier / theta_env.unsqueeze(0)
 
-        # Per-window LSTSQ recovers (i, q) exactly at zero noise regardless
-        # of γ orthogonality over short windows.
-        recovered = torch.empty(
-            batch, k_cap, 2, device=carrier.device, dtype=torch.float32
+        # Rebuild the same Gaussian masks as forward.
+        window_centers = (
+            (torch.arange(k_cap, device=t.device, dtype=t.dtype) + 0.5) * window_n
         )
-        for k in range(k_cap):
-            start = k * window_n
-            end = (k + 1) * window_n if k < k_cap - 1 else n_samples
-            basis = torch.stack(
-                [gamma_i[start:end], gamma_q[start:end]], dim=-1
-            )  # [n, 2]
-            rhs = carrier_norm[:, start:end].T  # [n, batch]
-            sol = torch.linalg.lstsq(basis, rhs).solution  # [2, batch]
-            recovered[:, k, :] = sol.T.to(torch.float32)
+        sigma = window_n / 4.0
+        idx = torch.arange(n_samples, device=t.device, dtype=t.dtype)
+        gaussian_masks = torch.exp(
+            -((idx.unsqueeze(0) - window_centers.unsqueeze(1)) ** 2)
+            / (2.0 * sigma**2)
+        )  # [k_cap, n_samples]
+
+        # Design matrix with overlapping Gaussian × γ-quadrature basis:
+        # column 2k   = gaussian_k · gamma_i
+        # column 2k+1 = gaussian_k · gamma_q
+        # Global LSTSQ recovers (I, Q) for all k jointly — required because
+        # adjacent Gaussians overlap (per-window LSTSQ would bleed neighbours).
+        basis_i = gaussian_masks * gamma_i.unsqueeze(0)  # [k_cap, n_samples]
+        basis_q = gaussian_masks * gamma_q.unsqueeze(0)
+        basis_matrix = torch.stack([basis_i, basis_q], dim=-1).permute(
+            1, 0, 2
+        ).reshape(n_samples, 2 * k_cap)
+
+        sol = torch.linalg.lstsq(
+            basis_matrix, carrier_norm.T
+        ).solution  # [2*k_cap, batch]
+        recovered = sol.T.reshape(batch, k_cap, 2).to(torch.float32)
 
         # Forward normalized symbols to unit norm (PSK). Compare recovered
-        # unit-norm (i, q) against unit-normalized constellation.
+        # (i, q) against unit-normalized constellation.
         const_norm = self.constellation / self.constellation.norm(
             dim=-1, keepdim=True
         ).clamp(min=1e-8)
