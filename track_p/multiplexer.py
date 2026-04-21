@@ -21,6 +21,7 @@ Q1-Q5 design arbitration lives on issue #1 comment thread.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -118,10 +119,18 @@ class GammaThetaMultiplexer(nn.Module):
     _t_grid: Tensor
 
     def __init__(
-        self, cfg: GammaThetaConfig | None = None, *, seed: int | None = None
+        self,
+        cfg: GammaThetaConfig | None = None,
+        *,
+        seed: int | None = None,
+        plasticity_schedule: Callable[[int], float] | None = None,
+        constellation_lock_after: int | None = None,
     ) -> None:
         super().__init__()
         self.cfg = cfg if cfg is not None else GammaThetaConfig()
+        self._plasticity_schedule = plasticity_schedule
+        self._constellation_lock_after = constellation_lock_after
+        self.register_buffer("plasticity_step", torch.tensor(0, dtype=torch.long))
 
         # Constellation init: true PSK on the unit circle + small randn
         # perturbation for symmetry breaking. Min pairwise distance is
@@ -155,6 +164,58 @@ class GammaThetaMultiplexer(nn.Module):
             torch.arange(n_samples, dtype=torch.float32) / self.cfg.sample_rate_hz
         )
         self.register_buffer("_t_grid", t_grid)
+
+        # Plasticity hook: when a schedule is registered, multiply every
+        # gradient flowing into the constellation by `schedule(step)`. A
+        # constant-1.0 schedule is exactly equivalent to no hook (identity).
+        if self._plasticity_schedule is not None:
+            self.constellation.register_hook(self._apply_plasticity_schedule)
+
+    def step(self) -> None:
+        """Advance the plasticity clock by one iteration.
+
+        Consumers (e.g. `bouba_sens.loop.AdaptationLoop`) call this
+        once per training step. When `constellation_lock_after` is
+        set and the counter crosses that threshold, the constellation
+        is permanently frozen (`requires_grad=False`), which models
+        the biological critical-period lock-in.
+        """
+        self.plasticity_step += 1
+        if (
+            self._constellation_lock_after is not None
+            and int(self.plasticity_step) >= self._constellation_lock_after
+        ):
+            self.constellation.requires_grad_(False)
+
+    def load_state_dict(  # type: ignore[override]
+        self, state_dict, strict: bool = True, assign: bool = False
+    ):
+        """Re-apply `constellation_lock_after` if the loaded counter has
+        already crossed the threshold. Without this, reloading a post-lock
+        checkpoint into a fresh instance would leave the constellation
+        plastic, silently breaking critical-period semantics.
+        """
+        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
+        if (
+            self._constellation_lock_after is not None
+            and int(self.plasticity_step) >= self._constellation_lock_after
+        ):
+            self.constellation.requires_grad_(False)
+        return result
+
+    def _apply_plasticity_schedule(self, grad: Tensor) -> Tensor:
+        """Backward hook: scale `grad` by `plasticity_schedule(step)`.
+
+        Called by autograd during `.backward()`. `grad` is the upstream
+        gradient of the loss w.r.t. the constellation parameter; we
+        return the scaled tensor and autograd uses that instead. Clamp
+        scale to a plain Python float so autograd never tries to track
+        the schedule itself.
+        """
+        if self._plasticity_schedule is None:  # defensive, never hit at runtime
+            return grad
+        scale = float(self._plasticity_schedule(int(self.plasticity_step)))
+        return grad * scale
 
     def forward(
         self,
