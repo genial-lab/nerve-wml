@@ -9,6 +9,7 @@ authors = [{ name = "Clément Saillant" }]
 dependencies = [
   "torch>=2.3",
   "numpy>=1.26",
+  "scipy>=1.17.1",
 ]
 
 [project.optional-dependencies]

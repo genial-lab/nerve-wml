@@ -77,6 +77,8 @@ def main() -> None:
 
     all_mlp_codes = []
     all_lif_codes = []
+    all_mlp_emb = []
+    all_lif_emb = []
 
     for seed in args.seeds:
         print(f"seed {seed}: training MLP + LIF ({args.steps} steps)...")
@@ -85,35 +87,44 @@ def main() -> None:
         eval_task = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
         x_eval, _ = eval_task.sample(batch=args.n_eval)
         with torch.no_grad():
-            mlp_codes = mlp.emit_head_pi(mlp.core(x_eval)).argmax(-1)
-            spikes = spike_with_surrogate(
-                lif.input_proj(lif_encoder(x_eval)), v_thr=lif.v_thr,
-            )
+            mlp_emb = mlp.core(x_eval)
+            mlp_codes = mlp.emit_head_pi(mlp_emb).argmax(-1)
+            lif_emb = lif.input_proj(lif_encoder(x_eval))
+            spikes = spike_with_surrogate(lif_emb, v_thr=lif.v_thr)
             lif_codes = lif.emit_head_pi(spikes).argmax(-1)
 
         all_mlp_codes.append(mlp_codes.cpu().numpy().astype(np.int64))
         all_lif_codes.append(lif_codes.cpu().numpy().astype(np.int64))
+        all_mlp_emb.append(mlp_emb.cpu().numpy().astype(np.float32))
+        all_lif_emb.append(lif_emb.cpu().numpy().astype(np.float32))
         print(
             f"  mlp alphabet used: {len(np.unique(all_mlp_codes[-1]))}/64, "
-            f"lif: {len(np.unique(all_lif_codes[-1]))}/64"
+            f"lif: {len(np.unique(all_lif_codes[-1]))}/64, "
+            f"emb shape mlp={mlp_emb.shape}, lif={lif_emb.shape}"
         )
 
     mlp_stack = np.stack(all_mlp_codes)
     lif_stack = np.stack(all_lif_codes)
+    mlp_emb_stack = np.stack(all_mlp_emb)
+    lif_emb_stack = np.stack(all_lif_emb)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
         args.out,
         mlp_codes=mlp_stack,
         lif_codes=lif_stack,
+        mlp_embeddings=mlp_emb_stack,
+        lif_embeddings=lif_emb_stack,
         seeds=np.asarray(args.seeds, dtype=np.int64),
         n_eval=args.n_eval,
         steps=args.steps,
     )
     print()
     print(f"Saved: {args.out}")
-    print(f"  mlp_codes shape: {mlp_stack.shape} dtype={mlp_stack.dtype}")
-    print(f"  lif_codes shape: {lif_stack.shape} dtype={lif_stack.dtype}")
+    print(f"  mlp_codes shape: {mlp_stack.shape}")
+    print(f"  lif_codes shape: {lif_stack.shape}")
+    print(f"  mlp_embeddings shape: {mlp_emb_stack.shape}")
+    print(f"  lif_embeddings shape: {lif_emb_stack.shape}")
 
 
 if __name__ == "__main__":

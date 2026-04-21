@@ -25,6 +25,12 @@ from nerve_wml.methodology.bootstrap_ci_mi import (
     BootstrapCiResult,
     bootstrap_ci_mi,
 )
+from nerve_wml.methodology.mi_estimators import (
+    entropy_discrete,
+    mi_kraskov_ksg_continuous,
+    mi_miller_madow_discrete,
+    mi_plugin_discrete,
+)
 from nerve_wml.methodology.mi_null_model import (
     NullModelResult,
     mi_argmax_onehot,
@@ -35,6 +41,10 @@ __all__ = [
     "BootstrapCiResult",
     "NullModelResult",
     "bootstrap_ci_mi",
+    "entropy_discrete",
     "mi_argmax_onehot",
+    "mi_kraskov_ksg_continuous",
+    "mi_miller_madow_discrete",
+    "mi_plugin_discrete",
     "null_model_mi",
 ]
