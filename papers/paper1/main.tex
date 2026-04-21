@@ -16,8 +16,12 @@
 \maketitle
 
 \begin{abstract}
-We introduce a nerve protocol --- discrete neuroletters drawn from a
-learned local vocabulary, multiplexed on $\gamma / \theta$ rhythms, and
+We introduce a nerve protocol --- discrete neuroletters
+(\emph{glossary: tokens from a fixed 64-element alphabet}) drawn
+from a learned local vocabulary, multiplexed on $\gamma / \theta$
+rhythms (\emph{glossary: frequency bands from predictive-coding
+biology associated with prediction and error signals, used here
+as a structural correctness contract --- see \S~Method}), and
 routed over a sparse learned topology --- that lets heterogeneous
 neural modules (World Model Languages, or WMLs) \emph{exchange
 information} without sharing a substrate. We validate two claims
@@ -28,8 +32,9 @@ reach comparable task accuracies on a non-linear benchmark
 (HardFlowProxyTask, XOR-on-noise 12-class). A four-point scaling law
 traces the pairwise MLP / LIF gap from median $10.7\%$ at $N=2$
 through $6.7\%$ at $N=16$, $2.4\%$ at $N=32$, plateau $2.7\%$ at
-$N=64$; direction stable (LIF $\geq$ MLP) in 15/15 multi-seed
-measurements. The triple-substrate version closes from $8.2\%$ at
+$N=64$; direction stable (LIF $\geq$ MLP) in 19/20 multi-seed
+measurements (5 seeds $\times$ 4 $N$-points, with $N=2$ completed
+in v1.7.0; 4/5 at $N=2$, 5/5 at $N{=}16$, $N{=}32$, $N{=}64$). The triple-substrate version closes from $8.2\%$ at
 $N=15$ to $4.3\%$ at $N=60$ over 5 seeds each.
 \textbf{(B) Substrate-agnostic information transmission.} For two
 independently trained substrates on the same input, the mutual
@@ -42,7 +47,7 @@ MLP-emitted codes alone through a learned transducer) retains
 $97\%$. The finding generalizes to a structurally independent
 distribution (MoonsTask, $\mathrm{MI} / H = 0.74$). A post-hoc analysis via Huh et al.'s~\cite{huh2024platonic} mutual-kNN kernel on continuous pre-VQ embeddings yields cross-substrate alignment $0.174$ at $k{=}10$ ($18.8\times$ the random baseline, 3 seeds), situating nerve-wml as an empirical validation of the Platonic Representation Hypothesis on heterogeneous biologically-inspired substrates. All numeric claims
 are reproducible via \texttt{uv run pytest} with explicit seeds;
-code and figures of this v1.3.0 snapshot are archived on Zenodo
+code and figures of this v1.7.0 snapshot are archived on Zenodo
 (concept DOI \href{https://doi.org/10.5281/zenodo.19656342}{10.5281/zenodo.19656342},
 version DOI \href{https://doi.org/10.5281/zenodo.19666405}{10.5281/zenodo.19666405}),
 and pre-registered on OSF as part of the dreamOfkiki research
