@@ -86,3 +86,33 @@ def test_plasticity_schedule_scales_constellation_gradient() -> None:
 
     ratio = (grad_norm_half / grad_norm_full).item()
     assert abs(ratio - 0.5) < 1e-6, f"expected 0.5x scaling, got {ratio}"
+
+
+def test_plasticity_step_roundtrips_through_state_dict() -> None:
+    """Phase 1 snapshot must carry the plasticity counter into Phase 2."""
+    src = GammaThetaMultiplexer(seed=0, constellation_lock_after=100)
+    for _ in range(5):
+        src.step()
+    assert int(src.plasticity_step) == 5
+
+    state = src.state_dict()
+
+    dst = GammaThetaMultiplexer(seed=0, constellation_lock_after=100)
+    dst.load_state_dict(state)
+    assert int(dst.plasticity_step) == 5
+
+
+def test_load_state_dict_re_applies_lock_when_threshold_already_crossed() -> None:
+    """If a checkpoint was taken post-lock, restoring it must freeze the
+    constellation even though the fresh instance started plastic."""
+    src = GammaThetaMultiplexer(seed=0, constellation_lock_after=3)
+    for _ in range(5):
+        src.step()
+    assert src.constellation.requires_grad is False
+
+    state = src.state_dict()
+
+    dst = GammaThetaMultiplexer(seed=0, constellation_lock_after=3)
+    assert dst.constellation.requires_grad is True
+    dst.load_state_dict(state)
+    assert dst.constellation.requires_grad is False

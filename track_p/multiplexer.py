@@ -130,7 +130,7 @@ class GammaThetaMultiplexer(nn.Module):
         self.cfg = cfg if cfg is not None else GammaThetaConfig()
         self._plasticity_schedule = plasticity_schedule
         self._constellation_lock_after = constellation_lock_after
-        self.plasticity_step: int = 0
+        self.register_buffer("plasticity_step", torch.tensor(0, dtype=torch.long))
 
         # Constellation init: true PSK on the unit circle + small randn
         # perturbation for symmetry breaking. Min pairwise distance is
@@ -183,9 +183,25 @@ class GammaThetaMultiplexer(nn.Module):
         self.plasticity_step += 1
         if (
             self._constellation_lock_after is not None
-            and self.plasticity_step >= self._constellation_lock_after
+            and int(self.plasticity_step) >= self._constellation_lock_after
         ):
             self.constellation.requires_grad_(False)
+
+    def load_state_dict(  # type: ignore[override]
+        self, state_dict, strict: bool = True, assign: bool = False
+    ):
+        """Re-apply `constellation_lock_after` if the loaded counter has
+        already crossed the threshold. Without this, reloading a post-lock
+        checkpoint into a fresh instance would leave the constellation
+        plastic, silently breaking critical-period semantics.
+        """
+        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
+        if (
+            self._constellation_lock_after is not None
+            and int(self.plasticity_step) >= self._constellation_lock_after
+        ):
+            self.constellation.requires_grad_(False)
+        return result
 
     def _apply_plasticity_schedule(self, grad: Tensor) -> Tensor:
         """Backward hook: scale `grad` by `plasticity_schedule(step)`.
@@ -198,7 +214,7 @@ class GammaThetaMultiplexer(nn.Module):
         """
         if self._plasticity_schedule is None:  # defensive, never hit at runtime
             return grad
-        scale = float(self._plasticity_schedule(self.plasticity_step))
+        scale = float(self._plasticity_schedule(int(self.plasticity_step)))
         return grad * scale
 
     def forward(
