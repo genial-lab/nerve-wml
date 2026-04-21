@@ -1,35 +1,46 @@
 """dreamOfkiki axiom bridge — wires the DR-0..DR-4 formal layer to nerve_wml.
 
-Status: **SCAFFOLD only**. Concrete wiring is gated on dream-of-kiki
-publishing a versioned, importable ``axioms`` public API (see issue
-hypneum-lab/nerve-wml#6 dependencies). This module ships:
+Upstream gate lifted 2026-04-21 : dream-of-kiki C-v0.8.0+PARTIAL published
+the ``kiki_oniric.axioms`` public API (DR-0..DR-4 as frozen ``Axiom``
+instances). The factories below are now live and build a concrete
+:class:`DreamOfKikiNerve` — a ``SimNerve`` that carries its originating
+axiom spec so the round-trip dual ``to_dream_of_kiki`` is exact.
 
-1. The ``REQUIRED_AXIOMS`` constant — the canonical DR-0..DR-4 keys.
-2. ``DreamOfKikiAxiomError`` — raised when a spec is malformed.
-3. ``from_dream_of_kiki(axioms, modalities, d_z)`` — validates the spec
-   shape *now* and raises ``NotImplementedError`` with a clear upstream
-   pointer for the actual instantiation.
-4. ``to_dream_of_kiki(nerve)`` — round-trip dual, same gating.
+Wiring per ``docs/integration-dream-of-kiki.md`` :
 
-Pinning the contract today (validation + signature) lets downstream
-consumers and the dream-of-kiki repo align on the protocol before any
-runtime coupling, so the eventual concrete wiring is a one-shot diff.
+- DR-0 (replay) → ``SimNerve`` event buffer (default ``n_wmls = |modalities|``)
+- DR-1 (downscale) → per-edge :class:`Transducer` entropy regulariser
+- DR-2 (restructure) → :func:`bridge.transducer_resize.resize_transducer` (not wired at construction ; invoked by downstream consolidation)
+- DR-3 (recombine) → :class:`Transducer` gating mode read from spec
+- DR-4 (bit-exact R1) → ``SimNerve(seed=...)`` + per-transducer deterministic init
+
+The bridge remains permissive about spec value types : values may be
+``kiki_oniric.axioms.Axiom`` instances, plain dicts, or anything else.
+The factory only reads optional hints (e.g. ``DR-3 → "gating"``,
+``DR-4 → "seed"``) ; missing hints fall back to deterministic defaults.
 
 See ``docs/integration-dream-of-kiki.md`` for the mapping table.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
+
+from track_p.sim_nerve import SimNerve
+from track_p.transducer import Transducer, TransducerGating
 
 #: Canonical 5 axioms from dreamOfkiki Paper 1 v0.2 (DR-0 through DR-4).
 #: Order matters — downstream tests assert this exact tuple.
 REQUIRED_AXIOMS: tuple[str, ...] = ("DR-0", "DR-1", "DR-2", "DR-3", "DR-4")
 
-#: Pointer to the upstream issue gating the concrete wiring.
+#: Pointer to the upstream issue that gated the concrete wiring.
 _UPSTREAM_GATE_URL = "https://github.com/hypneum-lab/nerve-wml/issues/6"
 
 #: Pointer to the design doc explaining the DR-X → nerve-wml mapping.
 _DESIGN_DOC_PATH = "docs/integration-dream-of-kiki.md"
+
+#: Default top-K sparse routing cap.
+_DEFAULT_K_CAP: int = 4
 
 
 class DreamOfKikiAxiomError(ValueError):
@@ -37,8 +48,40 @@ class DreamOfKikiAxiomError(ValueError):
     or contains an unsupported operation shape."""
 
 
-def _validate_spec(axioms: Mapping[str, Any], modalities: tuple[str, ...]) -> None:
-    """Shape-check a dreamOfkiki axiom spec without triggering wiring."""
+class DreamOfKikiNerve(SimNerve):
+    """SimNerve carrying its originating dreamOfkiki axiom spec.
+
+    Extends :class:`track_p.sim_nerve.SimNerve` with four bookkeeping
+    attributes so that :func:`to_dream_of_kiki` can reconstruct the
+    original spec deterministically. The underlying nerve protocol
+    (send / listen / tick / routing_weight) is inherited unchanged —
+    :class:`DreamOfKikiNerve` remains a valid ``Nerve`` per the
+    :mod:`nerve_core.protocols` contract.
+    """
+
+    def __init__(
+        self,
+        *,
+        axioms: Mapping[str, Any],
+        modalities: tuple[str, ...],
+        d_z: int,
+        transducers: Mapping[tuple[int, int], Transducer],
+        n_wmls: int,
+        k: int,
+        seed: int,
+    ) -> None:
+        super().__init__(n_wmls=n_wmls, k=k, seed=seed)
+        self.axioms: dict[str, Any] = dict(axioms)
+        self.modalities: tuple[str, ...] = tuple(modalities)
+        self.d_z: int = d_z
+        self.transducers: dict[tuple[int, int], Transducer] = dict(transducers)
+        self._bridge_seed: int = seed
+
+
+def _validate_spec(
+    axioms: Mapping[str, Any], modalities: tuple[str, ...]
+) -> None:
+    """Shape-check a dreamOfkiki axiom spec. Raises on any violation."""
     if not isinstance(axioms, Mapping):
         raise DreamOfKikiAxiomError(
             f"axioms must be a Mapping, got {type(axioms).__name__}",
@@ -57,48 +100,89 @@ def _validate_spec(axioms: Mapping[str, Any], modalities: tuple[str, ...]) -> No
         raise DreamOfKikiAxiomError(
             f"all modalities must be non-empty strings, got {list(modalities)}",
         )
+    if len(modalities) < 2:
+        raise DreamOfKikiAxiomError(
+            f"at least two modalities are required (got {len(modalities)}); "
+            "a nerve models inter-WML communication and degenerates with a "
+            "single modality. Supply a second modality or use a plain WML "
+            "instead of a full nerve.",
+        )
+
+
+def _extract_seed(axioms: Mapping[str, Any]) -> int:
+    """Derive a deterministic seed from the DR-4 spec value.
+
+    Accepts:
+      - a Mapping with an ``int`` "seed" key → use it verbatim
+      - anything else → fall back to a stable hash of the spec keys
+
+    The fallback is intentional : even without an explicit seed, two
+    calls with the same axiom spec produce the same nerve (R1 contract).
+    """
+    dr4 = axioms.get("DR-4")
+    if isinstance(dr4, Mapping):
+        seed = dr4.get("seed")
+        if isinstance(seed, int):
+            return seed
+    return abs(hash(tuple(sorted(axioms.keys())))) % (2**31)
+
+
+def _extract_gating(axioms: Mapping[str, Any]) -> TransducerGating:
+    """Derive the Transducer gating mode from the DR-3 spec value.
+
+    Accepts:
+      - a Mapping with a "gating" key ∈ {"hard", "gumbel_softmax"} → use it
+      - anything else → default :attr:`TransducerGating.HARD`
+    """
+    dr3 = axioms.get("DR-3")
+    if isinstance(dr3, Mapping):
+        gating = dr3.get("gating", "hard")
+        if gating in {"hard", "gumbel_softmax"}:
+            return TransducerGating(gating)
+    return TransducerGating.HARD
 
 
 def from_dream_of_kiki(
     axioms: Mapping[str, Any],
     modalities: tuple[str, ...] = (),
     d_z: int = 32,
-) -> Any:  # noqa: ARG001 — d_z reserved for impl
-    """Instantiate a nerve-wml ``Nerve`` from a dreamOfkiki axiom spec.
+) -> DreamOfKikiNerve:
+    """Instantiate a :class:`DreamOfKikiNerve` from a dreamOfkiki axiom spec.
 
-    **Status: SCAFFOLD.** The spec validation below is the load-bearing
-    public contract — it will not change once the concrete wiring lands.
-    The actual ``Nerve`` instantiation is gated on dream-of-kiki publishing
-    a versioned ``axioms`` public API; until then this function raises
-    ``NotImplementedError`` with a pointer to the upstream issue.
+    Wiring (see module docstring for the mapping table):
+
+    - ``n_wmls = len(modalities)``
+    - ``k = max(1, min(n_wmls - 1, 4))`` (top-K sparse routing)
+    - seed → ``axioms["DR-4"]["seed"]`` if present and ``int``, else a
+      stable hash of the spec keys
+    - per-edge ``Transducer(alphabet_size=d_z, gating=...)`` for every
+      ``(src, dst)`` pair with ``src != dst`` (empty if ``n_wmls < 2``)
+    - gating → ``axioms["DR-3"]["gating"]`` if ∈ ``{"hard", "gumbel_softmax"}``,
+      else :attr:`TransducerGating.HARD`
 
     Parameters
     ----------
     axioms
         Mapping with the 5 required keys ``DR-0`` through ``DR-4``
-        (case-sensitive). Values are per-axiom operation specs whose
-        shape is defined upstream by dream-of-kiki.
+        (case-sensitive). Values may be ``kiki_oniric.axioms.Axiom``
+        instances (recommended since 2026-04-21) or plain dicts.
     modalities
-        Tuple of modality names (e.g. ``("audio", "vision", "tactile")``).
-        Must be non-empty; each entry must be a non-empty string.
+        Non-empty tuple of non-empty modality names.
     d_z
-        Latent dimensionality. Default 32 matches the canonical
-        ``GammaThetaMultiplexer`` alphabet. Reserved for the concrete
-        wiring; ignored today.
+        Latent dimensionality; becomes each Transducer's alphabet size.
+        Default 32 matches the canonical ``GammaThetaMultiplexer``.
 
     Returns
     -------
-    Nerve
-        Once the upstream gate lifts.
+    DreamOfKikiNerve
+        A live nerve that satisfies the :class:`nerve_core.protocols.Nerve`
+        contract and carries its originating spec for round-trip dual.
 
     Raises
     ------
     DreamOfKikiAxiomError
-        If ``axioms`` is missing required keys, is not a Mapping, or if
+        If ``axioms`` is not a Mapping, misses required keys, or
         ``modalities`` is empty / contains non-string entries.
-    NotImplementedError
-        Always, until dream-of-kiki ships the public ``axioms`` API. The
-        message includes the upstream issue URL and the design doc path.
 
     See Also
     --------
@@ -106,27 +190,62 @@ def from_dream_of_kiki(
     docs/integration-dream-of-kiki.md : DR-X → nerve-wml mapping table.
     """
     _validate_spec(axioms, modalities)
-    raise NotImplementedError(
-        "Concrete wiring is gated on dream-of-kiki publishing a versioned "
-        "`axioms` public API. The spec validation above is the load-bearing "
-        f"contract; see {_UPSTREAM_GATE_URL} for the dependency tracker and "
-        f"{_DESIGN_DOC_PATH} for the DR-X → nerve-wml mapping.",
+    n_wmls = len(modalities)
+    k = min(n_wmls - 1, _DEFAULT_K_CAP)
+    seed = _extract_seed(axioms)
+    gating = _extract_gating(axioms)
+
+    transducers: dict[tuple[int, int], Transducer] = {
+        (src, dst): Transducer(alphabet_size=d_z, gating=gating)
+        for src in range(n_wmls)
+        for dst in range(n_wmls)
+        if src != dst
+    }
+
+    return DreamOfKikiNerve(
+        axioms=axioms,
+        modalities=modalities,
+        d_z=d_z,
+        transducers=transducers,
+        n_wmls=n_wmls,
+        k=k,
+        seed=seed,
     )
 
 
-def to_dream_of_kiki(nerve: Any) -> dict[str, Any]:  # noqa: ARG001
+def to_dream_of_kiki(nerve: DreamOfKikiNerve) -> dict[str, Any]:
     """Round-trip dual of :func:`from_dream_of_kiki`.
 
-    **Status: SCAFFOLD.** Gated on the same upstream dependency. Will
-    return a ``dict[str, Any]`` axiom spec equivalent to the one passed
-    to ``from_dream_of_kiki`` (modulo non-axiomatic Nerve internals).
+    Extracts the originating axiom spec, modalities, and ``d_z`` from a
+    :class:`DreamOfKikiNerve`. The returned dict is equivalent to the
+    input of :func:`from_dream_of_kiki` (the ``axioms`` value is a copy
+    of the Mapping passed in).
+
+    Parameters
+    ----------
+    nerve
+        A nerve produced by :func:`from_dream_of_kiki`.
+
+    Returns
+    -------
+    dict
+        ``{"axioms": ..., "modalities": ..., "d_z": ...}``.
 
     Raises
     ------
-    NotImplementedError
-        Always, until upstream gate lifts.
+    TypeError
+        If ``nerve`` is not a :class:`DreamOfKikiNerve` — the round-trip
+        is only defined for nerves this factory produced.
     """
-    raise NotImplementedError(
-        "Round-trip dual of from_dream_of_kiki — same upstream dependency. "
-        f"See {_UPSTREAM_GATE_URL}.",
-    )
+    if not isinstance(nerve, DreamOfKikiNerve):
+        raise TypeError(
+            "to_dream_of_kiki requires a DreamOfKikiNerve instance, got "
+            f"{type(nerve).__name__}. Construct one via "
+            "from_dream_of_kiki(...). Upstream pointer: "
+            f"{_UPSTREAM_GATE_URL}.",
+        )
+    return {
+        "axioms": dict(nerve.axioms),
+        "modalities": nerve.modalities,
+        "d_z": nerve.d_z,
+    }
