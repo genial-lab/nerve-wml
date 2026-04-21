@@ -32,11 +32,8 @@ from pathlib import Path
 
 import numpy as np
 
-# TODO Stage 1 wiring: uncomment when download has finished
-# (background job b5ypem4tz on kxkm-ai started 2026-04-21).
-#
-# import mne
-# from mne.datasets import sleep_physionet
+import mne
+from mne.datasets import sleep_physionet
 
 
 SLEEP_STAGE_MAP = {
@@ -61,27 +58,51 @@ def _load_subject_epochs(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return (epochs[N, n_ch, n_samples], labels[N]) for one subject.
 
-    TODO Stage 1 wiring: complete this once mne.io.read_raw_edf is
-    importable. The expected shape after preprocessing:
-    epochs.shape = (n_epochs, 2, 3000) at 100 Hz, 30-s windows.
+    Pipeline: read EDF, pick 2 EEG channels, bandpass 0.5-30 Hz,
+    downsample to 100 Hz, attach hypnogram annotations, segment
+    into 30-second non-overlapping epochs labelled by dominant
+    sleep stage.
     """
-    raise NotImplementedError(
-        "TODO Stage 1: implement EDF -> filtered -> segmented epochs. "
-        "See sleep-edf-pipeline-protocol.md for the exact recipe."
+    raw = mne.io.read_raw_edf(str(psg_path), preload=True, verbose=False)
+    raw.pick(list(channels))
+    raw.filter(*bandpass, verbose=False)
+    raw.resample(target_sfreq, verbose=False)
+
+    annotations = mne.read_annotations(str(hypnogram_path))
+    raw.set_annotations(annotations, emit_warning=False)
+
+    available_stages = set(annotations.description) & set(SLEEP_STAGE_MAP)
+    event_id = {k: SLEEP_STAGE_MAP[k] for k in available_stages}
+    if not event_id:
+        return (
+            np.empty((0, len(channels), int(epoch_length_s * target_sfreq))),
+            np.empty(0, dtype=np.int64),
+        )
+
+    events, _ = mne.events_from_annotations(
+        raw, event_id=event_id,
+        chunk_duration=epoch_length_s, verbose=False,
     )
-    # Skeleton:
-    # raw = mne.io.read_raw_edf(psg_path, preload=True, verbose=False)
-    # raw.pick_channels(list(channels))
-    # raw.filter(*bandpass, verbose=False)
-    # raw.resample(target_sfreq, verbose=False)
-    # annotations = mne.read_annotations(hypnogram_path)
-    # raw.set_annotations(annotations, emit_warning=False)
-    # event_id = {k: v for k, v in SLEEP_STAGE_MAP.items() if k in raw.annotations.description}
-    # events, _ = mne.events_from_annotations(raw, event_id=event_id, chunk_duration=epoch_length_s)
-    # epochs = mne.Epochs(raw, events, event_id=event_id,
-    #                     tmin=0., tmax=epoch_length_s - 1./target_sfreq,
-    #                     baseline=None, preload=True, verbose=False)
-    # return epochs.get_data().astype(np.float32), epochs.events[:, -1].astype(np.int64)
+    if events.size == 0:
+        return (
+            np.empty((0, len(channels), int(epoch_length_s * target_sfreq))),
+            np.empty(0, dtype=np.int64),
+        )
+
+    epochs = mne.Epochs(
+        raw=raw,
+        events=events,
+        event_id=event_id,
+        tmin=0.0,
+        tmax=epoch_length_s - 1.0 / target_sfreq,
+        baseline=None,
+        preload=True,
+        verbose=False,
+    )
+    return (
+        epochs.get_data().astype(np.float32),
+        epochs.events[:, -1].astype(np.int64),
+    )
 
 
 def _split_per_subject(
@@ -119,32 +140,37 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # TODO Stage 1: replace with mne.datasets.sleep_physionet.age.fetch_data
-    # call once mne is import-clean and download has completed.
-    raise NotImplementedError(
-        "TODO Stage 1: import mne, fetch subject files, loop, concatenate. "
-        "Block on the kxkm-ai background download (job b5ypem4tz) finishing."
-    )
-
     all_x_train: list[np.ndarray] = []
     all_y_train: list[np.ndarray] = []
     all_x_val:   list[np.ndarray] = []
     all_y_val:   list[np.ndarray] = []
     all_x_test:  list[np.ndarray] = []
     all_y_test:  list[np.ndarray] = []
+    n_total_epochs = 0
 
-    # for subj_id in args.subjects:
-    #     files = sleep_physionet.age.fetch_data(
-    #         subjects=[subj_id], recording=[args.recording], verbose=False,
-    #     )
-    #     psg_path, hypnogram_path = map(Path, files[0])
-    #     epochs, labels = _load_subject_epochs(psg_path, hypnogram_path)
-    #     x_tr, y_tr, x_va, y_va, x_te, y_te = _split_per_subject(
-    #         epochs, labels, seed=subj_id,
-    #     )
-    #     all_x_train.append(x_tr); all_y_train.append(y_tr)
-    #     all_x_val.append(x_va);   all_y_val.append(y_va)
-    #     all_x_test.append(x_te);  all_y_test.append(y_te)
+    for subj_id in args.subjects:
+        files = sleep_physionet.age.fetch_data(
+            subjects=[subj_id], recording=[args.recording], verbose=False,
+        )
+        psg_path, hypnogram_path = map(Path, files[0])
+        epochs, labels = _load_subject_epochs(psg_path, hypnogram_path)
+        if epochs.shape[0] == 0:
+            print(f"  subject {subj_id}: no usable epochs, skipped")
+            continue
+        x_tr, y_tr, x_va, y_va, x_te, y_te = _split_per_subject(
+            epochs, labels, seed=subj_id,
+        )
+        all_x_train.append(x_tr); all_y_train.append(y_tr)
+        all_x_val.append(x_va);   all_y_val.append(y_va)
+        all_x_test.append(x_te);  all_y_test.append(y_te)
+        n_total_epochs += epochs.shape[0]
+        print(
+            f"  subject {subj_id}: {epochs.shape[0]} epochs "
+            f"({x_tr.shape[0]} train / {x_va.shape[0]} val / {x_te.shape[0]} test)"
+        )
+
+    if not all_x_train:
+        raise RuntimeError("no subject produced usable epochs")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
@@ -157,7 +183,16 @@ def main() -> None:
         y_test=np.concatenate(all_y_test),
         subjects=np.asarray(args.subjects, dtype=np.int64),
     )
+    print()
     print(f"Saved: {args.out}")
+    print(
+        f"Total epochs: {n_total_epochs} "
+        f"({sum(x.shape[0] for x in all_x_train)} train / "
+        f"{sum(x.shape[0] for x in all_x_val)} val / "
+        f"{sum(x.shape[0] for x in all_x_test)} test)"
+    )
+    label_counts = np.bincount(np.concatenate(all_y_train).astype(np.int64))
+    print(f"Train label distribution: {dict(enumerate(label_counts.tolist()))}")
 
 
 if __name__ == "__main__":
