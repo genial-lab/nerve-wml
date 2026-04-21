@@ -635,11 +635,27 @@ the substrate gap to $6\%$. This is a positive substrate-specific
 signature --- LIF carries a scale-robustness property that matched-
 parameter MLP does not. The figure
 \texttt{papers/paper1/figures/eeg\_matched\_scale\_sweep.json}
-archives the full sweep. A complementary synthetic-side sweep on
-HardFlowProxyTask (see
-\texttt{scripts/hyperparam\_sensitivity.py}) yielded consistent
-scale-invariance at $d \in \{8, 16, 32, 64\}$ with median gap
-within the $1$--$5\%$ range across the operating point.
+archives the full sweep.
+
+A complementary HardFlowProxyTask sweep at pool scale $N=2$
+(\texttt{scripts/hyperparam\_sensitivity.py},
+\texttt{figures/hyperparam\_sensitivity.json}) reveals a
+\emph{different} sensitivity pattern: matched $d_{\mathrm{hidden}}$
+\emph{widens} the pairwise gap from $1.5\%$ at $d=8$ to $46\%$ at
+$d=64$ --- MLP plateaus at $\sim 0.52$ (a structural limit of
+4-layer ReLU on XOR-on-noise) while LIF scales to $0.75$. This
+confirms Test~(4b)'s observation that architecture scale and pool
+scale are \emph{orthogonal} axes: the stable $\sim 2$--$3\%$
+plateau of Claim~A emerges from pool averaging (Test~5,
+$N \geq 32$), not from substrate-capacity scale invariance.
+Learning-rate sensitivity at fixed $d=16$ is modest: gap ranges
+from $0.4\%$ (lr~$=5 \times 10^{-3}$, near-tied) to $14\%$
+(lr~$=10^{-1}$, MLP catastrophic), with the default lr~$=10^{-2}$
+operating point at $8.4\%$. The $N=2$ single-pair regime is not
+where Claim~A is defended; $N=16$ pool-scale averaging (Test~5)
+compresses substrate-intrinsic differences to the reproducible
+$2$--$3\%$ plateau independently of the matched $d_{\mathrm{hidden}}$
+chosen.
 
 Together Tests (1)--(3) pin Claim B empirically: the Nerve Protocol does more than expose a shared interface --- it carries information that crosses the substrate boundary with minimal loss. The tests \texttt{test\_mi\_between\_substrates\_is\_high}, \texttt{test\_mi\_at\_pool\_scale\_strengthens}, \texttt{test\_round\_trip\_fidelity\_preserves\_accuracy}, and \texttt{test\_cross\_substrate\_merge\_approaches\_mlp\_accuracy} pin the measurements. Tests~(10) and (11) of v1.7.0 refine this conclusion: the protocol carries information that otherwise requires a shared frontend (Test~10) and does so robustly across matched-capacity scales (Test~11).
 
