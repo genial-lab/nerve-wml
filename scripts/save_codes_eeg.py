@@ -65,8 +65,15 @@ def _train_pair_eeg(
     seed:      int,
     steps:     int,
     lr:        float = 1e-2,
-) -> tuple[MlpWML, LifWML, torch.nn.Linear]:
-    """Train MLP + LIF on EEG, mirroring scripts/save_codes_for_checks.py."""
+) -> tuple[MlpWML, LifWML]:
+    """Train MLP + LIF on EEG.
+
+    Both substrates are instantiated with input_dim=d_in so their
+    internal projection (mlp.core first layer / lif.input_proj)
+    handles the high-dim EEG input directly; no external encoder
+    is needed, unlike save_codes_for_checks.py where d_in equals
+    n_neurons and the encoder is a simple same-dim projection.
+    """
     torch.manual_seed(seed)
     nerve = MockNerve(n_wmls=2, k=1, seed=seed)
     nerve.set_phase_active(gamma=True, theta=False)
@@ -77,14 +84,10 @@ def _train_pair_eeg(
 
     task_lif = _EegTaskAdapter(x_train, y_train, n_classes=n_classes)
     lif = LifWML(id=0, n_neurons=d_hidden, input_dim=d_in, seed=seed + 10)
-    input_encoder = torch.nn.Linear(d_in, lif.n_neurons)
-    opt = torch.optim.Adam(
-        list(lif.parameters()) + list(input_encoder.parameters()),
-        lr=lr,
-    )
+    opt = torch.optim.Adam(lif.parameters(), lr=lr)
     for _ in range(steps):
         x, y = task_lif.sample(batch=64)
-        i_in = lif.input_proj(input_encoder(x))
+        i_in = lif.input_proj(x)
         spikes = spike_with_surrogate(i_in, v_thr=lif.v_thr)
         logits = lif.emit_head_pi(spikes)[:, : task_lif.n_classes]
         loss = F.cross_entropy(logits, y)
@@ -92,7 +95,7 @@ def _train_pair_eeg(
         loss.backward()
         opt.step()
 
-    return mlp, lif, input_encoder
+    return mlp, lif
 
 
 def main() -> None:
@@ -148,7 +151,7 @@ def main() -> None:
 
     for seed in args.seeds:
         print(f"seed {seed}: training MLP + LIF on EEG ({args.steps} steps)...")
-        mlp, lif, lif_encoder = _train_pair_eeg(
+        mlp, lif = _train_pair_eeg(
             x_train=x_train,
             y_train=y_train,
             n_classes=n_classes,
@@ -161,7 +164,7 @@ def main() -> None:
         with torch.no_grad():
             mlp_emb = mlp.core(x_test)
             mlp_codes = mlp.emit_head_pi(mlp_emb)[:, :n_classes].argmax(-1)
-            lif_emb = lif.input_proj(lif_encoder(x_test))
+            lif_emb = lif.input_proj(x_test)
             spikes = spike_with_surrogate(lif_emb, v_thr=lif.v_thr)
             lif_codes = lif.emit_head_pi(spikes)[:, :n_classes].argmax(-1)
             acc_mlp = (mlp_codes == y_test).float().mean().item()
