@@ -40,7 +40,7 @@ through learned transducers MLP $\to$ LIF $\to$ MLP retains $99\%$
 of direct-MLP accuracy; cross-substrate merge (a frozen LIF decoding
 MLP-emitted codes alone through a learned transducer) retains
 $97\%$. The finding generalizes to a structurally independent
-distribution (MoonsTask, $\mathrm{MI} / H = 0.74$). All numeric claims
+distribution (MoonsTask, $\mathrm{MI} / H = 0.74$). A post-hoc analysis via Huh et al.'s~\cite{huh2024platonic} mutual-kNN kernel on continuous pre-VQ embeddings yields cross-substrate alignment $0.174$ at $k{=}10$ ($18.8\times$ the random baseline, 3 seeds), situating nerve-wml as an empirical validation of the Platonic Representation Hypothesis on heterogeneous biological substrates. All numeric claims
 are reproducible via \texttt{uv run pytest} with explicit seeds;
 code and figures of this v1.3.0 snapshot are archived on Zenodo
 (concept DOI \href{https://doi.org/10.5281/zenodo.19656342}{10.5281/zenodo.19656342},
@@ -60,11 +60,11 @@ The nerve protocol sits at the intersection of four research lines. We relate ea
 
 \textbf{Predictive coding.} Rao and Ballard~\cite{rao1999predictive} introduced predictive coding as a unifying interpretation of extra-classical receptive-field effects in the visual cortex, where each layer transmits its prediction downstream and receives a residual error upstream. Bastos et al.~\cite{bastos2012canonical} then proposed the canonical microcircuit for predictive coding, mapping predictions to $\gamma$-band activity in superficial layers and errors to $\theta$/$\alpha$-band activity in deep layers. Our $\gamma$/$\theta$ multiplexing (see \S\ref{sec:method}) is a direct computational transcription of this canonical microcircuit, with $\gamma$-priority replacing the biological phase-locking.
 
-\textbf{Discrete latent codebooks.} van den Oord et al.~\cite{vandenoord2017neural} introduced VQ-VAE, the vector-quantized variational auto-encoder in which a continuous encoder output is snapped to one of $K$ discrete codes. We reuse the commitment-loss training recipe for each WML's local codebook (\S\ref{sec:method}). Zeghidour et al.~\cite{zeghidour2022soundstream} observed that random-init VQ training collapses onto a small subset of codes, and proposed codebook rotation --- re-seeding unused codes with live input points. Our Plan 4a experiments confirm that rotation is necessary for random-init convergence on the $64$-code alphabet (\S\ref{sec:experiments}).
+\textbf{Discrete latent codebooks.} van den Oord et al.~\cite{vandenoord2017neural} introduced VQ-VAE, the vector-quantized variational auto-encoder in which a continuous encoder output is snapped to one of $K$ discrete codes. We reuse the commitment-loss training recipe for each WML's local codebook (\S\ref{sec:method}). Zeghidour et al.~\cite{zeghidour2022soundstream} observed that random-init VQ training collapses onto a small subset of codes, and proposed codebook rotation --- re-seeding unused codes with live input points. Our Plan 4a experiments confirm that rotation is necessary for random-init convergence on the $64$-code alphabet (\S\ref{sec:experiments}). Tang et al.~\cite{tang2021dvnc} further demonstrated VQ bottlenecks as inter-module communication channels (DVNC), validating that discretisation improves compositional generalisation when neural modules recombine.
 
 \textbf{Surrogate-gradient spiking neural networks.} Neftci et al.~\cite{neftci2019surrogate} survey surrogate-gradient training of SNNs, where the non-differentiable Heaviside spike is replaced at back-propagation time by a smooth pseudo-derivative (we use the fast-sigmoid variant). This makes our \texttt{LifWML} implementation directly trainable alongside the differentiable \texttt{MlpWML} through the same task loss, which is the precondition for our polymorphie claim.
 
-\textbf{Representation similarity and cross-architecture communication.} Kornblith et al.~\cite{kornblith2019similarity} introduced linear and RBF Centered Kernel Alignment (CKA), a Hilbert--Schmidt Independence Criterion-based metric that is invariant to orthogonal transformation and isotropic scaling of hidden representations. Morcos, Raghu, and Bengio~\cite{morcos2018insights} introduced Projection-Weighted CCA (PWCCA) on the same broad question. Both operate on \emph{continuous} hidden states. Moschella et al.~\cite{moschella2022relative} subsequently proposed \emph{relative representations}: encoding each sample as a vector of cosine similarities to a fixed anchor set, which achieves invariance to angle-preserving transformations and enables zero-shot model stitching across independently trained models (their own Table~5 reports, for example, a ViT$\to$ResNet50 stitch accuracy of $4.69\%$ absolute vs $84.46\%$ relative on CIFAR-100). Their Figure~7 mentions vector-quantised anchors as an alternative similarity function but explicitly leaves the discrete variant as future work. Saxe et al.~\cite{saxe2024universality} argue empirically for a representation-universality hypothesis across biological and artificial networks using representational dissimilarity analysis (Pearson correlation of RDMs), also on continuous representations.
+\textbf{Representation similarity and cross-architecture communication.} Kornblith et al.~\cite{kornblith2019similarity} introduced linear and RBF Centered Kernel Alignment (CKA), a Hilbert--Schmidt Independence Criterion-based metric that is invariant to orthogonal transformation and isotropic scaling of hidden representations. Morcos, Raghu, and Bengio~\cite{morcos2018insights} introduced Projection-Weighted CCA (PWCCA) on the same broad question. Both operate on \emph{continuous} hidden states. Moschella et al.~\cite{moschella2022relative} subsequently proposed \emph{relative representations}: encoding each sample as a vector of cosine similarities to a fixed anchor set, which achieves invariance to angle-preserving transformations and enables zero-shot model stitching across independently trained models (their own Table~5 reports, for example, a ViT$\to$ResNet50 stitch accuracy of $4.69\%$ absolute vs $84.46\%$ relative on CIFAR-100). Their Figure~7 mentions vector-quantised anchors as an alternative similarity function but explicitly leaves the discrete variant as future work. Saxe et al.~\cite{saxe2024universality} argue empirically for a representation-universality hypothesis across biological and artificial networks using representational dissimilarity analysis (Pearson correlation of RDMs), also on continuous representations. Huh et al.~\cite{huh2024platonic} generalise these findings into the \emph{Platonic Representation Hypothesis}: representations across architectures, modalities, and training objectives converge toward a shared statistical model of reality. Our mutual-kNN alignment measurement in \S\ref{sec:info-tx}~(6) situates nerve-wml as an empirical validation of PRH on \emph{structurally heterogeneous biological substrates} --- ANN vs spiking --- rather than the vision/language cross-modality pairs that dominate their evidence.
 
 Our \texttt{MI}/\texttt{H} ratio on emitted discrete codes (\S\ref{sec:info-tx}) occupies the slot this family leaves open: we measure, at the discrete protocol-output level, what Kornblith's CKA, Morcos's PWCCA, Moschella's relative representations, and Saxe's RDMs measure on continuous hidden states. Empirically we observe $\mathrm{MI}/\mathrm{H} \approx 0.953$ versus $\mathrm{CKA}$ on the corresponding argmax one-hots of $0.910$ (\S\ref{sec:info-tx}); the $4.3$-percentage-point gap tracks soft many-to-one code mappings that kernel-alignment metrics miss by construction.
 
@@ -248,7 +248,7 @@ $N=64$ (5 seeds) & $2.73\%$  & $3.71\%$  & 5/5 \\
 \section{Information Transmission (v0.8)}
 \label{sec:info-tx}
 
-The scaling law in \S Threats establishes \textbf{substrate-equivalent task competence}: MLP and LIF cohorts reach comparable accuracies at pool scale, with a $\sim 2\text{--}3\%$ plateau gap. That is Claim A. The title of this paper promises more: \emph{substrate-agnostic information transmission} (Claim B) --- that neuroletters emitted by one substrate can be \emph{decoded coherently} by another. This section reports three direct measurements of Claim B.
+The scaling law in \S Threats establishes \textbf{substrate-equivalent task competence}: MLP and LIF cohorts reach comparable accuracies at pool scale, with a $\sim 2\text{--}3\%$ plateau gap. That is Claim A. The title of this paper promises more: \emph{substrate-agnostic information transmission} (Claim B) --- that neuroletters emitted by one substrate can be \emph{decoded coherently} by another. This section reports three direct measurements of Claim B, complemented by a post-hoc mutual-kNN validation in Test~(6) that situates nerve-wml as an empirical instantiation of the Platonic Representation Hypothesis~\cite{huh2024platonic} on heterogeneous biological substrates.
 
 \textbf{(1) Mutual information between emitted codes.} For $x$ sampled from \texttt{HardFlowProxyTask}, let $c_{\text{MLP}}(x)$ and $c_{\text{LIF}}(x)$ be the $\arg\max$ codes from each substrate's $\pi$ head. Over five seeds at $N=1$, $\operatorname{MI}(c_{\text{MLP}}, c_{\text{LIF}}) / H(c_{\text{MLP}}) \approx 0.91$. Extended to the $N=16$ pool (64 MLP--LIF cross-pairs per seed over three seeds, 192 pair measurements total), the ratio \emph{strengthens} to $0.96$ --- pool-scale averaging aligns codes across substrates, not just accuracies. Two independently trained substrate populations share $\sim 95\%$ of their code information; they are \emph{not} encoding orthogonally despite different dynamics.
 
@@ -293,6 +293,42 @@ is trained by fine-tuning only the two transducers $T_{M \to L}, T_{L \to M} \in
 \end{figure}
 
 \textbf{(5) Triple-substrate reality check.} \texttt{TransformerWML} (attention-based, third substrate) joins the polymorphism matrix. On \texttt{FlowProxyTask}, MLP, LIF, and Transformer all converge to $1.000$ accuracy (triple-gap $0\%$); on \texttt{HardFlowProxyTask} at $N=1$, MLP $= 0.547$, LIF $= 0.605$, Transformer $= 0.529$ (triple-gap $12.6\%$), with the LIF edge consistent with the two-substrate finding. Pool-scale multi-seed for TRF is future work.
+
+\textbf{(6) Post-hoc validation via mutual-kNN alignment (v1.5.2).}
+To relate Claim B to Huh et al.'s Platonic Representation Hypothesis~\cite{huh2024platonic},
+we apply their \texttt{mutual\_knn} alignment kernel to the continuous pre-VQ
+embeddings of MLP and LIF trained on \texttt{HardFlowProxyTask} ($d{=}16$,
+$12$-class). For each sample in a held-out batch of $N{=}1024$, we compute the
+overlap between its $k$ nearest neighbours in each substrate's embedding space
+under cosine similarity. Results in Table~\ref{tab:platonic-knn}.
+
+\begin{table}[t]
+  \centering
+  \caption{Mutual-kNN alignment between MLP and LIF pre-VQ embeddings
+  ($N{=}1024$, 3 seeds). Random baseline is two independent
+  $\mathcal{N}(0,1)$ tensors; chance is the theoretical $k/N$.}
+  \label{tab:platonic-knn}
+  \small
+  \begin{tabular}{rrrr}
+    \hline
+    $k$ & chance & random & MLP $\leftrightarrow$ LIF (median, IQR) \\
+    \hline
+    5  & 0.0049 & 0.0043 & 0.113 \ [0.111, 0.123] \\
+    10 & 0.0098 & 0.0093 & \textbf{0.174} \ [0.172, 0.189] \\
+    20 & 0.0195 & 0.0198 & 0.256 \ [0.256, 0.275] \\
+    50 & 0.0488 & 0.0479 & 0.443 \ [0.441, 0.456] \\
+    \hline
+  \end{tabular}
+\end{table}
+
+At $k{=}10$, MLP--LIF alignment is $18.8\times$ the random baseline, within
+the $0.15$--$0.25$ range reported by Huh et al.\ for cross-modality model
+pairs (e.g.\ DINOv2 vs CLIP). The signal is monotone across $k$ and stable
+across seeds. Combined with the post-VQ $\mathrm{MI}/H{=}0.91$--$0.96$ of
+Test~(1), this situates nerve-wml as an empirical PRH validation on
+structurally heterogeneous substrates at both continuous (pre-VQ) and
+discrete (post-VQ) representational levels. Reproducible via
+\texttt{uv run python scripts/platonic\_rh\_alignment.py}.
 
 Together Tests (1)--(3) pin Claim B empirically: the Nerve Protocol does more than expose a shared interface --- it carries information that crosses the substrate boundary with minimal loss. The tests \texttt{test\_mi\_between\_substrates\_is\_high}, \texttt{test\_mi\_at\_pool\_scale\_strengthens}, \texttt{test\_round\_trip\_fidelity\_preserves\_accuracy}, and \texttt{test\_cross\_substrate\_merge\_approaches\_mlp\_accuracy} pin the measurements.
 
@@ -383,6 +419,21 @@ neuromorphic deployment is left for follow-up work. The $\gamma$
 priority rule suffices in simulation; a phase-locked oscillator
 regime would give the same invariant without the rule and is a
 natural next step.
+
+\textbf{$\gamma/\theta$ empirical stress.} The $\gamma/\theta$ multiplexing
+invariant (N-3: $\text{role}{=}\varepsilon \Leftrightarrow \text{phase}{=}\theta$,
+\S\ref{sec:method}) is formally specified and unit-tested
+(\texttt{tests/unit/test\_invariants.py}), but the experiments in this draft
+run the \texttt{HardFlowProxyTask} pipeline with the $\theta$ phase inactive
+throughout training --- only the $\gamma$ pathway is stressed. An ablation
+of the \texttt{strict\_n3} flag on this pipeline therefore yields
+$\Delta = 0$ at four significant figures across $N \in \{16, 32, 64\}$
+over 5 seeds (\texttt{scripts/ablation\_n3.py}): there are simply no
+$\varepsilon$-letters to validate. A stress-test of N-3 under a pipeline
+that actively generates $\varepsilon$ (e.g.\ \texttt{dream\_bridge.collect\_eps\_trace})
+is left for follow-up work and is a precondition for any quantitative
+claim on the Bastos-Friston cortical-microcircuit analogy beyond its
+formal specification.
 
 Wiring the adaptive-alphabet operations into live WMLs at training
 time (rather than post-hoc on checkpoints) is tracked in spec \S 13

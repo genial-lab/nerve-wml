@@ -9,7 +9,7 @@ Citation : each release is archived on Zenodo (concept DOI [10.5281/zenodo.19656
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 
-## Status — v1.5.1 (2026-04-21, on PyPI)
+## Status — v1.5.2 (2026-04-21, on PyPI)
 
 Installable via `pip install nerve-wml`. Three feature releases landed on
 2026-04-21 (v1.4.0 → v1.5.1) on top of the v1.2.3 scientific baseline; see
@@ -42,6 +42,7 @@ Independent substrates share 91–96 % of their emitted code information; a froz
 | **MoonsTask** (2nd distribution) | MI/H = **0.74** (3 seeds) | v1.1.4 |
 | **Architecture scale** ($d_\text{hidden}=128$) | Gap AMPLIFIES to 26 % on XOR (arch vs pool scale are orthogonal); Claim B survives | `figures/bigger_arch_scaling.pdf` |
 | **Temporal streaming** (16-token sequence) | MI/H = **0.72** at trained step, **0.71** at filler step — structural alignment | `figures/temporal_info_tx.pdf` |
+| **Platonic RH alignment** (Huh 2024, pre-VQ mutual-kNN) | MLP ↔ LIF = **0.174** at k=10 (18.8× random, 3 seeds); stable across k∈[5,50] | `figures/platonic_rh_alignment.json` |
 | **Direction stability** (LIF ≥ MLP on hard task) | **15/15** pairwise seeds + 5/5 triple-substrate | — |
 
 LIF's spike dynamics give it a substrate-intrinsic $\sim 2$–$3\%$ expressivity edge on XOR-style boundaries (plateau floor). Pool averaging compresses this, architecture width amplifies it.
