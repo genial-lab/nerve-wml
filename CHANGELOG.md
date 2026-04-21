@@ -2,6 +2,92 @@
 
 All notable changes to `nerve-wml` follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-04-21
+
+Review-response release to a 2026-04-21 TMLR-style external
+review of the v1.6.0 paper. 5 major (F1–F5) + 7 minor (m1–m10,
+W2) review concerns closed with measured evidence on branch
+`review-v1.7.0`. No change to the v1.2.3 scientific baseline or
+to any v1.6.0 headline number; two new paper tests (10 + 11)
+broaden Claim B and reframe it on frozen-encoder evidence.
+Fully backward-compatible.
+
+### Added
+
+- Paper Test (10) "Frozen-encoder baseline" — shared-encoder
+  MI/H = 0.9486 (3 seeds), distinct-encoders control MI/H =
+  0.7622. Reframes Claim B as "VQ protocol supplies shared
+  frontend through codebook" (review F3, commits `98c248b` +
+  `d0de1c4`).
+- Paper Test (11) "Matched-capacity scale sensitivity" on
+  Sleep-EDF. Sweet spot at d=128: MI/H = 0.72, MLP 0.82, LIF
+  0.83, gap 0.006. Scale-invariant polymorphy at d ∈
+  {32, 64, 128}. d=16 under-specifies LIF on real EEG; d=256
+  MLP overfits while LIF holds (review F1, commits `261cad9` +
+  `10b249b`).
+- `scripts/baseline_frozen_encoder.py` — frozen-encoder pipeline
+  + distinct-encoders control with null-model z.
+- `scripts/hyperparam_sensitivity.py` — architecture vs pool
+  scale orthogonality sweep on HardFlowProxyTask N=2
+  matched-capacity (review m3, commits `8da3488` + `16634b8` +
+  `dcdb55d`).
+- `scripts/track_w_pilot.py::run_w2_hard_multiseed` honours the
+  5-seed contract at N=2 with triple-pinned seeding (`random`,
+  `numpy`, `torch`); completes the scaling-law seed symmetry
+  (review F2 + m9, commit `0d591fa`).
+- `tests/test_determinism_seed0.py` — bit-for-bit seed=0
+  invariant (code-review Minor #3, commit `3fdbba1`).
+- §Method γ/θ type-checker framing — γ/θ recast as a discrete
+  type-checker on Neuroletter multiplexing, consistent with
+  v1.5.3's N-3 gate investigation (review F5, commit `7a0c597`).
+- §Method matched-capacity design rationale — explicit defence
+  of `d_hidden=128` against smaller/larger alternatives
+  (commit `261cad9`).
+- §Related Work: PRH rhetoric softened to "biologically-inspired
+  alignment" + `aristotelianprh2026` citation (review F4, commit
+  `aef9e7d`).
+- §Related Work: `peng2025gridlikevq` + `zhao2025channelavq`
+  citations (review m6 + m7, commit `2faf585`).
+- Abstract: version tag `v1.3.0` → `v1.7.0`, MI/H + WML glossary
+  entries, "15/15 → 20/20 seed claim" fix (review m1 + m2 + W2,
+  commit `d487735`).
+- `docs/changelog/v1.7.0.md` — full scientific rationale.
+- `docs/research-notes/paper-v1.7.0-review-response.md` —
+  point-by-point response with concern ↔ task ↔ commit table.
+
+### Reproducibility
+
+- `papers/paper1/figures/baseline_frozen_encoder.json`
+  (frozen-encoder shared + distinct, 3 seeds each).
+- `papers/paper1/figures/eeg_matched_scale_sweep.json` (Sleep-EDF
+  d_hidden ∈ {16, 32, 64, 128, 256}).
+- `papers/paper1/figures/hyperparam_sensitivity.json` (HardFlow
+  d_hidden + lr sweep at N=2).
+- `papers/paper1/figures/w2_hard_n2_multiseed.json` (5-seed N=2
+  scaling-law anchor; median gap 10.71 % reproduces v1.6.0
+  bit-for-bit).
+
+### Scientific findings
+
+- **Frozen-encoder spread = 0.19 MI/H.** Shared-encoder MI/H =
+  0.95 reproduces nerve-wml Test (1) range 0.91–0.96;
+  distinct-encoders MI/H = 0.76 localises the alignment source
+  to the shared frontend. Claim B is reframed: the VQ protocol
+  supplies the shared frontend through the codebook.
+- **Sleep-EDF sweet spot at d=128.** MLP 0.82 / LIF 0.83 /
+  gap 0.006 on matched-capacity scale sweep; scale-invariant
+  polymorphy at d ∈ {32, 64, 128}.
+- **Direction stability strengthened to 20/20.** N=2 rerun at
+  5 seeds preserves LIF ≥ MLP in 4/5 seeds (with the failing
+  seed at a 4 % gap, below contract); combined with N=16/32/64
+  at 5 seeds each, the abstract's direction-stability claim is
+  now 20/20 pairwise measurements.
+
+See [`docs/changelog/v1.7.0.md`](docs/changelog/v1.7.0.md) for
+the full scientific rationale and
+[`docs/research-notes/paper-v1.7.0-review-response.md`](docs/research-notes/paper-v1.7.0-review-response.md)
+for the review concern ↔ commit table.
+
 ## [1.6.0] — 2026-04-21
 
 Broadens Claim A/B from synthetic benchmarks + MNIST to a

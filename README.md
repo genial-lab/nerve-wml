@@ -9,10 +9,10 @@ Citation : each release is archived on Zenodo (concept DOI [10.5281/zenodo.19656
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 
-## Status — v1.6.0 (2026-04-21, on PyPI)
+## Status — v1.7.0 (2026-04-21, on PyPI)
 
 Installable via `pip install nerve-wml`. Five releases landed on
-2026-04-21 (v1.4.0 → v1.6.0) on top of the v1.2.3 scientific baseline; see
+2026-04-21 (v1.4.0 → v1.7.0) on top of the v1.2.3 scientific baseline; see
 [§ Post-v1.2.3 API additions](#post-v123-api-additions-2026-04-21) below
 or [`CHANGELOG.md`](CHANGELOG.md) for the per-version diff. The **scientific
 claims below are the v1.2.3 baseline and remain load-bearing** — the newer
@@ -46,6 +46,8 @@ Independent substrates share 91–96 % of their emitted code information; a froz
 | **Temporal streaming** (16-token sequence) | MI/H = **0.72** at trained step, **0.71** at filler step — structural alignment | `figures/temporal_info_tx.pdf` |
 | **Platonic RH alignment** (Huh 2024, pre-VQ mutual-kNN) | MLP ↔ LIF = **0.174** at k=10 (18.8× random, 3 seeds); stable across k∈[5,50] | `figures/platonic_rh_alignment.json` |
 | **Real neural data** (Sleep-EDF EEG, v1.6.0) | See paper Test (9); Claim B confirmed on 5-class sleep-stage via `MlpWML.from_spectrogram` + d_hidden=128 | `figures/mi_eeg_d128_spectro.json` |
+| **Frozen-encoder baseline** (review F3, v1.7.0) | Shared MI/H=0.95 (matches nerve-wml Test 1), Distinct MI/H=0.76 (without shared frontend); Claim B reframed as "VQ protocol supplies shared frontend through codebook" | `figures/baseline_frozen_encoder.json` |
+| **Matched-capacity scale sweep** (Sleep-EDF, v1.7.0) | Sweet spot at d=128: MI/H=0.72, MLP=0.82, LIF=0.83, gap=0.006. Scale-invariant polymorphy at d ∈ {32, 64, 128}. d=16 insufficient for LIF convergence on real EEG; d=256 MLP overfits while LIF holds | `figures/eeg_matched_scale_sweep.json` |
 | **Direction stability** (LIF ≥ MLP on hard task) | **15/15** pairwise seeds + 5/5 triple-substrate, preserved on Sleep-EDF (+0.007 LIF edge) | — |
 
 LIF's spike dynamics give it a substrate-intrinsic $\sim 2$–$3\%$ expressivity edge on XOR-style boundaries (plateau floor). Pool averaging compresses this, architecture width amplifies it.
