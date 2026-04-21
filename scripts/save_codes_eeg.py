@@ -38,21 +38,52 @@ from track_w.training import train_wml_on_task
 
 class _EegTaskAdapter:
     """Wraps an x[N, d_in] / y[N] tensor pair into the
-    HardFlowProxyTask-style sample(batch=B) -> (x, y) interface.
+    HardFlowProxyTask-style sample(batch=B) -> (x, y) interface
+    with optional class-balanced sampling to counter Sleep-EDF's
+    severe class imbalance (Wake ~68%, N1/N3 ~4% each).
 
-    nerve-wml's training utilities expect the .sample() API. We
-    serve EEG epochs through the same call signature so the
-    substrates are trained identically to run_w2_hard.
+    When class_balanced=True, each batch contains approximately
+    batch/n_classes samples per class, draw uniformly from the
+    indices of that class. This prevents the loss from being
+    dominated by Wake, which causes mode collapse under plain
+    uniform sampling.
     """
 
-    def __init__(self, x: torch.Tensor, y: torch.Tensor, n_classes: int) -> None:
+    def __init__(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        n_classes: int,
+        class_balanced: bool = True,
+    ) -> None:
         self.x = x
         self.y = y
         self.n_classes = n_classes
         self._n = x.shape[0]
+        self._class_balanced = class_balanced
+        if class_balanced:
+            self._idx_per_class: list[torch.Tensor] = [
+                torch.where(y == c)[0] for c in range(n_classes)
+            ]
+            self._non_empty_classes = [
+                c for c, idxs in enumerate(self._idx_per_class) if len(idxs) > 0
+            ]
 
     def sample(self, batch: int) -> tuple[torch.Tensor, torch.Tensor]:
-        idx = torch.randint(0, self._n, (batch,))
+        if not self._class_balanced:
+            idx = torch.randint(0, self._n, (batch,))
+            return self.x[idx], self.y[idx]
+        classes = torch.tensor(
+            [
+                self._non_empty_classes[i % len(self._non_empty_classes)]
+                for i in torch.randperm(batch).tolist()
+            ],
+            dtype=torch.long,
+        )
+        idx = torch.empty(batch, dtype=torch.long)
+        for i, c in enumerate(classes.tolist()):
+            class_idx = self._idx_per_class[c]
+            idx[i] = class_idx[torch.randint(0, len(class_idx), (1,)).item()]
         return self.x[idx], self.y[idx]
 
 
@@ -107,8 +138,9 @@ def main() -> None:
         help="NPZ produced by eeg_preprocess_sleep_edf.py.",
     )
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    parser.add_argument("--steps", type=int, default=800)
+    parser.add_argument("--steps", type=int, default=2000)
     parser.add_argument("--d-hidden", type=int, default=16)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument(
         "--out",
         type=Path,
@@ -137,10 +169,25 @@ def main() -> None:
     x_test = torch.from_numpy(x_test_np.reshape(-1, d_in).astype(np.float32))
     y_test = torch.from_numpy(y_test_np.astype(np.int64))
 
+    # Per-feature z-score normalisation using TRAIN stats only.
+    # Raw EEG amplitudes span 1e-5 to 1e-3 volts; unnormalised
+    # inputs drove the MLP/LIF pair to immediate mode collapse
+    # onto the Wake class at d_in=6000.
+    train_mean = x_train.mean(dim=0, keepdim=True)
+    train_std = x_train.std(dim=0, keepdim=True).clamp(min=1e-6)
+    x_train = (x_train - train_mean) / train_std
+    x_test = (x_test - train_mean) / train_std
+
     print(
         f"EEG epochs: train {x_train.shape}, test {x_test.shape}, "
         f"{n_classes} classes, d_in={d_in}"
     )
+    print(
+        f"After z-score: train mean={x_train.mean().item():+.4f} "
+        f"std={x_train.std().item():.4f}"
+    )
+    label_counts_train = torch.bincount(y_train, minlength=n_classes).tolist()
+    print(f"Train label counts: {dict(enumerate(label_counts_train))}")
 
     all_codes_mlp: list[np.ndarray] = []
     all_codes_lif: list[np.ndarray] = []
@@ -159,6 +206,7 @@ def main() -> None:
             d_hidden=args.d_hidden,
             seed=seed,
             steps=args.steps,
+            lr=args.lr,
         )
 
         with torch.no_grad():
