@@ -2,6 +2,107 @@
 
 All notable changes to `nerve-wml` follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] — 2026-04-21
+
+First PyPI release (`pip install nerve-wml`). Patch bump that syncs the
+package metadata: v1.5.0 shipped with `pyproject.toml` `[project].version`
+still at `"1.4.0"` (the v1.4.0 release commit bumped it, but the three
+subsequent PRs merged on top without a second bump). Per-version Zenodo
+DOI dropped from `CITATION.cff` — only the concept DOI
+`10.5281/zenodo.19656342` remains, resolving to the latest record.
+
+### Fixed
+
+- `pyproject.toml` version now `"1.5.1"`. Wheels built from the v1.5 line
+  report the correct version in `pip list` / `__version__`.
+
+### Changed
+
+- `CITATION.cff` identifier block: concept DOI only, no per-release churn.
+
+See [`docs/changelog/v1.5.1.md`](docs/changelog/v1.5.1.md) for the full
+rationale.
+
+## [1.5.0] — 2026-04-21
+
+Bundle of three features requested by downstream consumers (`bouba_sens`
+and `dream-of-kiki`). No regression on the v1.2.3 scientific baseline —
+all new behaviour is opt-in and off by default.
+
+### Added
+
+- `track_p.transducer.TransducerGating` enum (`HARD` | `GUMBEL_SOFTMAX`)
+  plus `gumbel_tau` kwarg on `Transducer.__init__`, per-call `hard` /
+  `tau` overrides on `forward`. Default stays `HARD` so v1.2.3 runs
+  reproduce bit-identically. Opt-in `GUMBEL_SOFTMAX` returns the
+  `(B, alphabet_size)` differentiable soft distribution instead of the
+  argmax long codes — keeps gradients alive through the code axis.
+  Motivated by [#5](https://github.com/hypneum-lab/nerve-wml/issues/5)
+  (bouba_sens B-2 Me3-delta under-threshold in 5/5 worlds).
+- `track_w/spectrogram.py` — `SpectrogramEncoder` wrapping
+  `torch.stft → magnitude → top-N bins → temporal mean → linear
+  projection`. Shipped with `MlpWML.from_spectrogram(sample_rate,
+  window_sec, hop_sec, n_bins, target_carrier_dim)` classmethod factory.
+  Callable as `encoder(waveform)` for both `(B, T)` and `(T,)` inputs;
+  output shape `(B, target_carrier_dim)`. Motivated by
+  [#7](https://github.com/hypneum-lab/nerve-wml/issues/7) (DRY for
+  bouba_sens MIT-BIH ECG + Studyforrest audio consumers).
+- `nerve_core/from_dream_of_kiki.py` — `from_dream_of_kiki` + dual
+  `to_dream_of_kiki`, `DreamOfKikiAxiomError`, `REQUIRED_AXIOMS`
+  (`DR-0..DR-4`). **Scaffold only**: spec validation live, runtime
+  wiring gated on `dream-of-kiki` publishing a versioned `axioms` public
+  API. Design doc [`docs/integration-dream-of-kiki.md`](docs/integration-dream-of-kiki.md)
+  gives the DR-X → nerve-wml mapping table. Motivated by
+  [#6](https://github.com/hypneum-lab/nerve-wml/issues/6).
+
+### Tests
+
+- +35 new unit tests (14 transducer gating + 11 spectrogram encoder +
+  10 dream-bridge scaffold). Existing 21 multiplexer tests unchanged.
+
+### Known issue
+
+- `pyproject.toml` `[project].version` stayed at `"1.4.0"` — fixed in
+  v1.5.1. No functional impact.
+
+## [1.4.0] — 2026-04-21
+
+Exposes opt-in plasticity gating on `GammaThetaMultiplexer`. Motivated by
+[#4](https://github.com/hypneum-lab/nerve-wml/issues/4) — bouba_sens B-1
+Amedi-2007 congenital-blindness gap directionally falsified across 4/5
+worlds in ADR-0005 + ADR-0009; the only architectural difference between
+T1 (congenital) and T2 (late-acquired) was whether Phase 1 ran, with
+identical multiplexer plasticity. This release lets `AdaptationLoop` give
+T1 / T2 biologically distinct plasticity profiles.
+
+### Added
+
+- `GammaThetaMultiplexer.__init__` accepts `plasticity_schedule:
+  Callable[[int], float] | None` and `constellation_lock_after: int | None`.
+- `GammaThetaMultiplexer.step()` advances an internal `plasticity_step`
+  long buffer. When `constellation_lock_after` is set and the counter
+  crosses it, `constellation.requires_grad` is permanently set to
+  `False` (biological critical-period lock-in).
+- `plasticity_schedule` callback multiplies the gradient flowing into
+  `constellation` on every `.backward()`. A constant-1.0 schedule is
+  exactly equivalent to no hook (identity).
+- `state_dict()` / `load_state_dict()` round-trip preserves
+  `plasticity_step`; the lock is re-applied on load if the saved counter
+  already crossed the threshold.
+
+### Unchanged
+
+- Default construction reproduces v1.3.0 behaviour byte-for-byte.
+  The 21 pinned multiplexer contract tests still pass.
+
+### Packaging
+
+- `pyproject.toml` version bumped from the drifted `"0.1.0"` to `"1.4.0"`
+  to re-sync with the git tag trajectory (`v1.3.0` → `v1.4.0`).
+
+See [`docs/changelog/v1.4.0.md`](docs/changelog/v1.4.0.md) for the full
+rationale + downstream validation plan.
+
 ## [1.2.0] — 2026-04-20
 
 Closes the three remaining scientific debts identified in the v1.1.1 audit: real-data validation (MNIST), bigger-architecture sensitivity (d_hidden=128), and temporal streaming (sequential tokens). Three new figures published.

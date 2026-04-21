@@ -9,9 +9,19 @@ Citation : each release is archived on Zenodo (concept DOI [10.5281/zenodo.19656
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 
-## Status — v1.2.3 (2026-04-20)
+## Status — v1.5.1 (2026-04-21, on PyPI)
 
-The project is now empirically defensible across three experimental axes: real data, architecture scale, and temporal streaming. Two claims are quantified:
+Installable via `pip install nerve-wml`. Three feature releases landed on
+2026-04-21 (v1.4.0 → v1.5.1) on top of the v1.2.3 scientific baseline; see
+[§ Post-v1.2.3 API additions](#post-v123-api-additions-2026-04-21) below
+or [`CHANGELOG.md`](CHANGELOG.md) for the per-version diff. The **scientific
+claims below are the v1.2.3 baseline and remain load-bearing** — the newer
+releases added opt-in knobs (plasticity schedule, Gumbel-softmax gating,
+spectrogram encoder, dreamOfkiki axiom bridge scaffold) without changing
+any headline measurement.
+
+The project is empirically defensible across three experimental axes: real
+data, architecture scale, and temporal streaming. Two claims are quantified:
 
 **Claim A — Substrate-agnostic polymorphism (task competence converges).**
 Three structurally distinct substrates (stateless MLP, spiking LIF with surrogate-gradient, attention-based Transformer) reach comparable accuracies via the shared Nerve Protocol.
@@ -73,11 +83,33 @@ The paper explicitly does **not** claim: a new learning algorithm, superiority o
 | [`gate-adaptive-passed`](../../releases/tag/gate-adaptive-passed) | Per-WML alphabet shrinks/grows via `active_mask` + transducer resize |
 | [`gate-llm-advisor-passed`](../../releases/tag/gate-llm-advisor-passed) | Env-gated, never-raising `NerveWmlAdvisor` for micro-kiki, < 50 ms warm latency |
 
-Paper drafts: `paper-v0.2-draft` … `paper-v0.9-draft` track the iterations that produced the v1.2 claims above. Release tags `v1.0.0`, `v1.1.0` … `v1.1.4`, `v1.2.0` archive the code snapshots; see `CHANGELOG.md` for per-version findings.
+Paper drafts: `paper-v0.2-draft` … `paper-v0.9-draft` track the iterations that produced the v1.2 claims above. Release tags `v1.0.0`, `v1.1.0` … `v1.1.4`, `v1.2.0`, `v1.2.3`, `v1.3.0`, `v1.4.0`, `v1.5.0`, `v1.5.1` archive the code snapshots; see [`CHANGELOG.md`](CHANGELOG.md) for per-version findings.
+
+## Post-v1.2.3 API additions (2026-04-21)
+
+Three issues filed by downstream consumers (`bouba_sens`, `dream-of-kiki`)
+landed on 2026-04-21 as opt-in knobs — **no change to v1.2.3 headline
+numbers**, all new behaviour is off by default.
+
+| Release | Issue | Feature | Motivation (downstream) |
+|---------|-------|---------|-------------------------|
+| **v1.4.0** | [#4](https://github.com/hypneum-lab/nerve-wml/issues/4) | `GammaThetaMultiplexer` gains `plasticity_schedule` + `constellation_lock_after` | `bouba_sens` B-1 Amedi-2007 gap directionally falsified in 4/5 worlds; biologically-distinct T1/T2 plasticity profiles are the probe. |
+| **v1.5.0** | [#5](https://github.com/hypneum-lab/nerve-wml/issues/5) | `Transducer` gains `TransducerGating.GUMBEL_SOFTMAX` (opt-in soft distribution) | `bouba_sens` B-2 Me3-delta under-threshold in 5/5 worlds; hard argmax gating may be too abrupt for post-lesion MI migration. |
+| **v1.5.0** | [#7](https://github.com/hypneum-lab/nerve-wml/issues/7) | `MlpWML.from_spectrogram(...)` factory + `SpectrogramEncoder` | DRY: `bouba_sens` MIT-BIH ECG fetcher + future Studyforrest audio share one canonical STFT → carrier path. |
+| **v1.5.0** | [#6](https://github.com/hypneum-lab/nerve-wml/issues/6) | `nerve_core.from_dream_of_kiki(...)` scaffold (runtime gated upstream) | Pin the public axiom-bridge contract today so `bouba_sens` can plumb the call site before `dream-of-kiki` publishes its versioned `axioms` API. |
+| **v1.5.1** | — | Packaging: `pyproject.toml` `version` sync (stale `1.4.0` on the v1.5.0 commit), `CITATION.cff` keeps concept DOI only. | v1.5.0 shipped with a stale version field — first PyPI release carries the correct metadata. |
+
+Design docs: [`docs/integration-dream-of-kiki.md`](docs/integration-dream-of-kiki.md), changelog files at [`docs/changelog/v1.4.0.md`](docs/changelog/v1.4.0.md) and [`docs/changelog/v1.5.1.md`](docs/changelog/v1.5.1.md).
 
 ## Install
 
 ```bash
+# From PyPI (v1.5.1+)
+pip install nerve-wml
+
+# From source, with dev extras (tests + lint)
+git clone https://github.com/hypneum-lab/nerve-wml.git
+cd nerve-wml
 uv sync --all-extras
 ```
 
