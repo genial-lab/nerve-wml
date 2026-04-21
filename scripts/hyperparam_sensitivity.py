@@ -36,7 +36,7 @@ def _one_config(
     nerve.set_phase_active(gamma=True, theta=False)
 
     task_mlp = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
-    mlp = MlpWML(id=0, d_hidden=d_hidden, seed=seed)
+    mlp = MlpWML(id=0, d_hidden=d_hidden, input_dim=16, seed=seed)
     train_wml_on_task(mlp, nerve, task_mlp, steps=steps, lr=lr)
 
     task_lif = HardFlowProxyTask(dim=16, n_classes=12, seed=seed)
