@@ -1,34 +1,73 @@
 {
-  "per_seed": [
-    {
-      "seed": 0,
-      "acc_mlp": 0.5,
-      "acc_lif": 0.4970000088214874,
-      "mi_plugin": 0.910794397764578,
-      "null_z": 269.63597372754253,
-      "null_p": 0.0
-    },
-    {
-      "seed": 1,
-      "acc_mlp": 0.5630000233650208,
-      "acc_lif": 0.5630000233650208,
-      "mi_plugin": 0.9897508607278294,
-      "null_z": 484.1013525865467,
-      "null_p": 0.0
-    },
-    {
-      "seed": 2,
-      "acc_mlp": 0.4909999966621399,
-      "acc_lif": 0.4869999885559082,
-      "mi_plugin": 0.9452550286495763,
-      "null_z": 320.21243595890553,
-      "null_p": 0.0
+  "shared_encoder": {
+    "per_seed": [
+      {
+        "seed": 0,
+        "acc_mlp": 0.5,
+        "acc_lif": 0.4970000088214874,
+        "mi_plugin": 0.910794397764578,
+        "null_z": 269.63597372754253,
+        "null_p": 0.0
+      },
+      {
+        "seed": 1,
+        "acc_mlp": 0.5630000233650208,
+        "acc_lif": 0.5630000233650208,
+        "mi_plugin": 0.9897508607278294,
+        "null_z": 484.1013525865467,
+        "null_p": 0.0
+      },
+      {
+        "seed": 2,
+        "acc_mlp": 0.4909999966621399,
+        "acc_lif": 0.4869999885559082,
+        "mi_plugin": 0.9452550286495763,
+        "null_z": 320.21243595890553,
+        "null_p": 0.0
+      }
+    ],
+    "summary": {
+      "mi_plugin_mean": 0.9486000957139945,
+      "acc_mlp_mean": 0.5180000066757202,
+      "acc_lif_mean": 0.5156666735808054
     }
-  ],
-  "summary": {
-    "mi_plugin_mean": 0.9486000957139945,
-    "acc_mlp_mean": 0.5180000066757202,
-    "acc_lif_mean": 0.5156666735808054,
-    "nerve_wml_comparison": "nerve-wml Test (1) reported MI/H = 0.91-0.96 on the same task. If this frozen-encoder baseline reaches similar MI/H, the VQ protocol contribution to Claim B must be reformulated."
+  },
+  "distinct_encoders": {
+    "per_seed": [
+      {
+        "seed": 0,
+        "acc_mlp": 0.49799999594688416,
+        "acc_lif": 0.45100000500679016,
+        "mi_plugin": 0.7287871622147636,
+        "null_z": 220.67626283524902,
+        "null_p": 0.0
+      },
+      {
+        "seed": 1,
+        "acc_mlp": 0.5609999895095825,
+        "acc_lif": 0.5299999713897705,
+        "mi_plugin": 0.7991571238042616,
+        "null_z": 316.0686733978145,
+        "null_p": 0.0
+      },
+      {
+        "seed": 2,
+        "acc_mlp": 0.49799999594688416,
+        "acc_lif": 0.5109999775886536,
+        "mi_plugin": 0.7586924578653745,
+        "null_z": 264.9542285523504,
+        "null_p": 0.0
+      }
+    ],
+    "summary": {
+      "mi_plugin_mean": 0.7622122479614665,
+      "acc_mlp_mean": 0.5189999938011169,
+      "acc_lif_mean": 0.4973333179950714
+    }
+  },
+  "comparison": {
+    "shared_minus_distinct": 0.18638784775252804,
+    "nerve_wml_test1_range": "0.91-0.96",
+    "interpretation": "If distinct_encoders MI/H stays high (>=0.85), Claim B has no empirical floor -- shared-task-alignment explains nerve-wml Test (1). If distinct_encoders MI/H drops below 0.60, Claim B can be reformulated as 'alignment across distinct encoders via VQ protocol', which is defensible."
   }
 }

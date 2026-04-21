@@ -26,3 +26,22 @@ def test_frozen_baseline_encoder_is_frozen() -> None:
         encoder_before.parameters(), encoder_after.parameters(),
     ):
         assert (p_before == p_after).all(), "encoder changed during training"
+
+
+def test_frozen_baseline_distinct_encoders_different_codes() -> None:
+    """Distinct-encoders mode should produce different code distributions.
+
+    When encoder_a != encoder_b (review beta stronger control), the two
+    heads see different feature spaces. Their argmax codes should not
+    be identical (if they were, it would mean the heads ignored the
+    encoder difference, which is impossible with finite capacity heads
+    + random features).
+    """
+    result = train_frozen_baseline(
+        seed=0, steps=100, d_hidden=16, distinct_encoders=True,
+    )
+    same = (result["codes_mlp"] == result["codes_lif"]).sum()
+    total = len(result["codes_mlp"])
+    assert same < total, (
+        f"distinct encoders produced identical codes: {same}/{total}"
+    )
