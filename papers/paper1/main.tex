@@ -109,6 +109,28 @@ a surprise-gated $\varepsilon$ head; \texttt{LifWML} implements the
 same protocol via a population of LIF neurons with surrogate-gradient
 spiking. Both expose only the \texttt{step(nerve, t)} entry point.
 
+\subsection{Matched-capacity design}
+\label{sec:matched-capacity}
+Throughout the paper we fix the substrate capacity to
+$d_{\mathrm{hidden}} = n_{\mathrm{neurons}}$ (default $16$, with
+sensitivity sweep at $\{8, 16, 32, 64, 128, 256\}$ reported in
+\S\,(11) and Sleep-EDF matched-scale runs). This \emph{under-parameterises}
+the substrates by SOTA standards (e.g.\ SLA-MLP on Sleep-EDF uses
+$\sim 10^6$ parameters and achieves $95.5\%$; our $d_{\mathrm{hidden}}
+= 128$ configuration uses $\sim 10^4$ parameters and achieves
+$\sim 80\%$). The choice is deliberate: fixing the parameter budget
+equal between MLP and LIF isolates the \emph{architectural} difference
+(dense ReLU vs spiking membrane dynamics) from capacity-driven
+differences. Any observed substrate-intrinsic gap (the $2$--$3\%$
+plateau of Claim A) is then attributable to substrate structure, not
+to one architecture having more free parameters than the other. This
+rigour comes at a cost: our absolute accuracies on real-world
+benchmarks are below the unrestricted-capacity SOTA. We accept that
+cost in exchange for apples-to-apples substrate comparability, and
+explicitly flag it in the experiments that follow. The paper's claims
+are about \emph{substrate-relative} information transmission, not
+about maximum achievable task competence.
+
 \section{Experiments}
 \label{sec:experiments}
 
