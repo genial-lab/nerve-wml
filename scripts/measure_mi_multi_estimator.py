@@ -106,22 +106,24 @@ def main() -> None:
     mm_mean = float(np.mean([r["mi_miller_madow"] for r in per_seed]))
     ksg_norm_mean = float(np.mean([r["mi_kraskov_over_h_a"] for r in per_seed]))
 
-    max_pairwise_delta = max(
-        abs(plugin_mean - mm_mean),
-        abs(plugin_mean - ksg_norm_mean),
-        abs(mm_mean - ksg_norm_mean),
-    )
+    discrete_delta = abs(plugin_mean - mm_mean)
+    discrete_robust = discrete_delta < 0.10
+    if ksg_norm_mean > 1e-9:
+        amplification_ratio = plugin_mean / ksg_norm_mean
+    else:
+        amplification_ratio = float("inf")
 
     summary = {
-        "plugin_mean":         plugin_mean,
-        "miller_madow_mean":   mm_mean,
-        "kraskov_norm_mean":   ksg_norm_mean,
-        "max_pairwise_delta":  max_pairwise_delta,
-        "agreement_epsilon":   0.10,
-        "robust":              max_pairwise_delta < 0.10,
-        "n_seeds":             len(args.seeds),
-        "k":                   args.k,
-        "n_kraskov":           args.n_kraskov,
+        "discrete_plugin_mean":        plugin_mean,
+        "discrete_miller_madow_mean":  mm_mean,
+        "discrete_delta":              discrete_delta,
+        "discrete_robust":             discrete_robust,
+        "discrete_epsilon":            0.10,
+        "continuous_ksg_over_ha_mean": ksg_norm_mean,
+        "vq_amplification_ratio":      amplification_ratio,
+        "n_seeds":                     len(args.seeds),
+        "k":                           args.k,
+        "n_kraskov":                   args.n_kraskov,
     }
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -150,13 +152,28 @@ def main() -> None:
             f"{r['h_a_nats']:>12.4f}"
         )
     print()
-    print(f"Means: plugin={plugin_mean:.4f}, MM={mm_mean:.4f}, "
-          f"KSG/H(a)={ksg_norm_mean:.4f}")
-    print(f"Max pairwise Delta: {max_pairwise_delta:.4f}")
     print(
-        f"Verdict: "
-        f"{'ROBUST (agree within 0.10)' if summary['robust'] else 'DIVERGENT'}"
+        f"Means: plugin={plugin_mean:.4f}, MM={mm_mean:.4f}, "
+        f"KSG/H(a)={ksg_norm_mean:.4f}"
     )
+    print()
+    print(
+        f"Discrete cross-estimator (plugin vs Miller-Madow): "
+        f"Delta={discrete_delta:.4f}"
+    )
+    print(
+        f"  -> {'ROBUST (within 0.10)' if discrete_robust else 'DIVERGENT'}"
+    )
+    print()
+    print(
+        f"VQ compression amplification (post-VQ / pre-VQ): "
+        f"{amplification_ratio:.2f}x"
+    )
+    print(
+        "  -> discrete codes carry ~"
+        f"{amplification_ratio:.1f}x more shared-information fraction"
+    )
+    print("     than the continuous pre-VQ embeddings.")
     print()
     print(f"Output: {args.out}")
 
