@@ -107,6 +107,7 @@ def _validate_spec(
             "single modality. Supply a second modality or use a plain WML "
             "instead of a full nerve.",
         )
+    _check_dr2_predicate_if_present(axioms)
 
 
 def _extract_seed(axioms: Mapping[str, Any]) -> int:
@@ -140,6 +141,35 @@ def _extract_gating(axioms: Mapping[str, Any]) -> TransducerGating:
         if gating in {"hard", "gumbel_softmax"}:
             return TransducerGating(gating)
     return TransducerGating.HARD
+
+
+def _check_dr2_predicate_if_present(axioms: Mapping[str, Any]) -> None:
+    """Invoke DR-2's predicate on ``axioms['operation_order']`` if both
+    are present.
+
+    Extras-opt-in: silently no-ops when DR-2 value has no ``predicate``
+    attribute (plain dict case) or when the spec does not carry an
+    ``operation_order`` hint.
+
+    The predicate returns True iff the order is admissible under the
+    weakened DR-2 axiom (see upstream amendment
+    2026-04-21-dr2-empirical-falsification.md). False → raise.
+    """
+    dr2 = axioms.get("DR-2")
+    predicate = getattr(dr2, "predicate", None)
+    if predicate is None or not callable(predicate):
+        return
+    order = axioms.get("operation_order")
+    if order is None:
+        return
+    if not predicate(tuple(order)):
+        raise DreamOfKikiAxiomError(
+            "DR-2 precondition violated by operation_order="
+            f"{tuple(order)!r}. The weakened DR-2 (upstream amendment "
+            "2026-04-21-dr2-empirical-falsification.md) rejects any "
+            "permutation with RESTRUCTURE before REPLAY. Reorder or "
+            "drop the operation_order hint to skip the check.",
+        )
 
 
 def from_dream_of_kiki(
