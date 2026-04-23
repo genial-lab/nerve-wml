@@ -2,6 +2,38 @@
 
 All notable changes to `nerve-wml` follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] — 2026-04-24
+
+Axioms-axis integration with `dream-of-kiki`. `kiki_oniric.axioms.DR0..DR4`
+are now first-class inputs to `from_dream_of_kiki`; DR-2 weakened
+predicate (upstream amendment 2026-04-21) consumed automatically.
+Strictly additive — dict-based spec contract from v1.7.0 preserved.
+See `docs/changelog/v1.8.0.md` for the full rationale.
+
+### Added
+
+- Optional extras group `nerve-wml[axioms]` pointing to
+  `dreamofkiki @ git+https://github.com/hypneum-lab/dream-of-kiki@v0.9.1`.
+- `nerve_core.axioms_compat.check_upstream_axioms_version` with
+  pinned `C-v0.8.0+PARTIAL` target and `UpstreamAxiomsVersionWarning`.
+  Runs once at `nerve_core` import.
+- DR-2 predicate consumption: `_check_dr2_predicate_if_present`
+  invokes the upstream `_dr2_precondition` predicate when DR-2 is an
+  `Axiom` instance and the spec carries an `operation_order` hint.
+
+### Changed
+
+- `_validate_spec` now calls `_check_dr2_predicate_if_present` at the
+  end of its checks.
+- `docs/integration-dream-of-kiki.md` Status line updated to "LIVE
+  (axioms axis, v1.8.0+)".
+
+### Unchanged
+
+- Dict-based spec contract from v1.7.0 — fully backward-compatible.
+- `bridge/dream_*.py` consolidate scaffold — runtime integration is
+  v1.9.0 (blocked on upstream `kiki_oniric.consolidate()` publication).
+
 ## [1.7.0] — 2026-04-21
 
 Review-response release to a 2026-04-21 TMLR-style external

@@ -9,10 +9,14 @@ Citation : each release is archived on Zenodo (concept DOI [10.5281/zenodo.19656
 
 Research engine that validates a discrete-code communication layer between heterogeneous neural modules (World Model Languages, or WMLs). Modules exchange **neuroletters** over a sparse learned topology, multiplexed on gamma/theta rhythms, and converted between local codebooks by per-edge transducers. The paper draft is at [`papers/paper1/main.tex`](papers/paper1/main.tex); the full spec is at [`docs/superpowers/specs/2026-04-18-nerve-wml-design.md`](docs/superpowers/specs/2026-04-18-nerve-wml-design.md).
 
-## Status — v1.7.0 (2026-04-21, on PyPI)
+## Status — v1.8.0 (2026-04-24, on PyPI)
 
-Installable via `pip install nerve-wml`. Five releases landed on
-2026-04-21 (v1.4.0 → v1.7.0) on top of the v1.2.3 scientific baseline; see
+Installable via `pip install nerve-wml`. For the real
+`kiki_oniric.axioms` integration (dream-of-kiki bridge), install the
+axioms extra: `uv sync --extra axioms` or
+`pip install "nerve-wml @ git+... ; extras=['axioms']"`. Six releases
+landed on 2026-04-21 → 2026-04-24 (v1.4.0 → v1.8.0) on top of the
+v1.2.3 scientific baseline; see
 [§ Post-v1.2.3 API additions](#post-v123-api-additions-2026-04-21) below
 or [`CHANGELOG.md`](CHANGELOG.md) for the per-version diff. The **scientific
 claims below are the v1.2.3 baseline and remain load-bearing** — the newer

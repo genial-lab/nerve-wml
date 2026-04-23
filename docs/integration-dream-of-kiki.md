@@ -1,6 +1,7 @@
 # dreamOfkiki ↔ nerve-wml integration
 
-**Status: SCAFFOLD — design pinned, runtime wiring gated upstream.** See
+**Status: LIVE (axioms axis, v1.8.0+) — `kiki_oniric.axioms` integration wired;
+consolidate runtime still scaffolded, tracked for v1.9.0.** See
 `nerve_core/from_dream_of_kiki.py` for the live contract and
 [hypneum-lab/nerve-wml#6](https://github.com/hypneum-lab/nerve-wml/issues/6)
 for the dependency tracker.
@@ -123,3 +124,43 @@ Three reasons:
 - dream-of-kiki Paper 1 v0.2 (in review): https://github.com/hypneum-lab/dream-of-kiki
 - Upstream issue tracker: https://github.com/hypneum-lab/nerve-wml/issues/6
 - Design dependency: `nerve_core/from_dream_of_kiki.py`
+
+## v1.8.0-axioms (2026-04-24)
+
+Real `kiki_oniric.axioms.DR0..DR4` instances are now first-class inputs
+to `from_dream_of_kiki`. Install the optional extra:
+
+```bash
+uv sync --extra axioms
+```
+
+When installed, users can pass real `Axiom` instances directly:
+
+```python
+from kiki_oniric import axioms as up
+from nerve_core.from_dream_of_kiki import from_dream_of_kiki
+
+nerve = from_dream_of_kiki(
+    axioms={
+        "DR-0": up.DR0,
+        "DR-1": up.DR1,
+        "DR-2": up.DR2,
+        "DR-3": up.DR3,
+        "DR-4": up.DR4,
+    },
+    modalities=("audio", "vision"),
+    d_z=32,
+)
+```
+
+The weakened DR-2 precondition (upstream amendment 2026-04-21) is
+consumed automatically when the spec carries an `operation_order`
+hint; orders that put RESTRUCTURE before REPLAY raise
+`DreamOfKikiAxiomError`.
+
+Pinned upstream version at this release: `C-v0.8.0+PARTIAL`. A
+warning is emitted on import-time drift; strict mode is opt-in via
+`nerve_core.axioms_compat.check_upstream_axioms_version(strict=True)`.
+
+The `consolidate()` runtime wiring remains scaffolded; that bump is
+tracked for v1.9.0.
